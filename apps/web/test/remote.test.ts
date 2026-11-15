@@ -13,15 +13,19 @@ function fakeClient(opts: { pushError?: { message: string; code?: string; status
     };
     return q;
   };
+  const calls: unknown[] = [];
   const sb: any = {
     from: (table: string) => ({
       select: () => query(table),
-      upsert: async () => ({ error: opts.pushError ?? null }),
+      upsert: async (row: unknown, o: unknown) => { calls.push(['upsert', table, row, o]); return { error: opts.pushError ?? null }; },
+      update: (values: unknown) => ({ match: async (m: unknown) => { calls.push(['update', table, values, m]); return { error: null }; } }),
+      delete: () => ({ match: async (m: unknown) => { calls.push(['delete', table, m]); return { error: null }; } }),
     }),
+    storage: { from: (bucket: string) => ({ upload: async (path: string, blob: unknown, o: unknown) => { calls.push(['upload', bucket, path, o]); return { error: null }; } }) },
     rpc: async () => ({ error: opts.pushError ?? null }),
     auth: { signOut: vi.fn(async () => ({ error: null })) },
   };
-  return { sb, filters };
+  return { sb, filters, calls };
 }
 
 it('pull asks for every correction, whatever the last pull time (device clocks stamp created_at)', async () => {
@@ -44,4 +48,28 @@ it('sign-out clears the login on this device even with no internet', async () =>
   const { sb } = fakeClient();
   await supabaseAuth(sb).signOut();
   expect(sb.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+});
+
+it('update and delete use match filters; upsert passes onConflict', async () => {
+  const { sb, calls } = fakeClient();
+  const r = supabaseRemote(sb);
+  await r.push({ kind: 'update', table: 'enrollments', match: { id: 'e1' }, values: { left_on: '2026-11-14' } });
+  await r.push({ kind: 'delete', table: 'calendar_days', match: { school_year_id: 'sy', date: '2026-11-20' } });
+  await r.push({ kind: 'upsert', table: 'calendar_days', row: { date: '2026-11-20' }, onConflict: 'school_year_id,date' });
+  expect(calls).toEqual([
+    ['update', 'enrollments', { left_on: '2026-11-14' }, { id: 'e1' }],
+    ['delete', 'calendar_days', { school_year_id: 'sy', date: '2026-11-20' }],
+    ['upsert', 'calendar_days', { date: '2026-11-20' }, { onConflict: 'school_year_id,date' }],
+  ]);
+});
+
+it('an upload reads the photo from this device; with no local photo it is a RejectedError', async () => {
+  const { openDb } = await import('../src/lib/db');
+  const db = openDb('t-' + crypto.randomUUID());
+  const { sb, calls } = fakeClient();
+  const r = supabaseRemote(sb, db);
+  await expect(r.push({ kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' })).rejects.toBeInstanceOf(RejectedError);
+  await db.photos.put({ correctionId: 'x', blob: new Blob(['jpg']), name: 'x.jpg' });
+  await r.push({ kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' });
+  expect(calls).toEqual([['upload', 'excuse-letters', 'c1/x.jpg', { upsert: true, contentType: 'image/jpeg' }]]);
 });

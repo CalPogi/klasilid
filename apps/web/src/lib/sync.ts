@@ -1,12 +1,12 @@
 import { RejectedError } from './remote-supabase';
 import type {
-  KlasilidDb, LCalendarDay, LCard, LClass, LCorrection, LEnrollment, LLearner, LSeatPlan, LTap, LTapWindow, OutboxOp,
+  KlasilidDb, LCalendarDay, LCard, LClass, LCorrection, LEnrollment, LLearner, LSeat, LSeatPlan, LTap, LTapWindow, OutboxOp,
 } from './db';
 
 /** What the server holds that this device may see. Small tables arrive in full; taps and corrections are merged by id. */
 export interface Snapshot {
   classes: LClass[]; learners: LLearner[]; enrollments: LEnrollment[]; cards: LCard[]; tapWindows: LTapWindow[];
-  calendarDays: LCalendarDay[]; seatPlans: LSeatPlan[]; taps: LTap[]; corrections: LCorrection[];
+  calendarDays: LCalendarDay[]; seatPlans: LSeatPlan[]; seats: LSeat[]; taps: LTap[]; corrections: LCorrection[];
 }
 
 export interface Remote {
@@ -46,7 +46,7 @@ export async function syncOnce(db: KlasilidDb, remote: Remote, now = new Date())
     return { pushed, pulled: false, rejected, error: message(e) };
   }
 
-  const small = [db.classes, db.learners, db.enrollments, db.cards, db.tapWindows, db.calendarDays, db.seatPlans];
+  const small = [db.classes, db.learners, db.enrollments, db.cards, db.tapWindows, db.calendarDays, db.seatPlans, db.seats];
   await db.transaction('rw', [...small, db.taps, db.corrections, db.outbox, db.meta], async () => {
     // A change queued while the pull was in flight would be wiped by a full replace; keep local rows until it is pushed.
     if ((await db.outbox.count()) === 0) {
@@ -58,6 +58,7 @@ export async function syncOnce(db: KlasilidDb, remote: Remote, now = new Date())
       await db.tapWindows.bulkPut(snap.tapWindows);
       await db.calendarDays.bulkPut(snap.calendarDays);
       await db.seatPlans.bulkPut(snap.seatPlans);
+      await db.seats.bulkPut(snap.seats);
     }
     await db.taps.bulkPut(snap.taps);
     await db.corrections.bulkPut(snap.corrections);

@@ -4,12 +4,13 @@ import { openDb, recordCorrection, type KlasilidDb, type LCorrection, type Outbo
 import { RejectedError } from '../src/lib/remote-supabase';
 import { correctionFromRow, syncOnce, type Remote, type Snapshot } from '../src/lib/sync';
 
-const empty = (): Snapshot => ({ classes: [], learners: [], enrollments: [], cards: [], tapWindows: [], calendarDays: [], seatPlans: [], taps: [], corrections: [] });
+const empty = (): Snapshot => ({ classes: [], learners: [], enrollments: [], cards: [], tapWindows: [], calendarDays: [], seatPlans: [], seats: [], taps: [], corrections: [] });
 
 /** In-memory stand-in for Supabase: ignores duplicate ids like the server's on-conflict-do-nothing. */
 class FakeRemote implements Remote {
   rows = new Map<string, Record<string, unknown>>();
   rpcs: OutboxOp[] = [];
+  ops: string[] = [];
   pushes = 0;
   failAfter = Infinity;
   failPull = false;
@@ -19,6 +20,7 @@ class FakeRemote implements Remote {
     if (this.pushes >= this.failAfter) throw new Error('network down');
     if (op.kind === 'insert' && this.refuse.has(op.row.id as string)) throw new RejectedError('new row violates row-level security policy');
     this.pushes++;
+    this.ops.push(op.kind);
     if (op.kind === 'insert') { if (!this.rows.has(op.row.id as string)) this.rows.set(op.row.id as string, op.row); }
     else this.rpcs.push(op);
   }
@@ -115,4 +117,25 @@ it('a change the server refuses is set aside and the rest still sync', async () 
   const set = await db.rejected.toArray();
   expect(set).toHaveLength(1);
   expect(set[0]).toMatchObject({ error: 'new row violates row-level security policy' });
+});
+
+it('upsert, update, delete and upload ops are pushed in order and removed from the outbox', async () => {
+  const at = '2026-11-13T00:00:00.000Z';
+  await db.outbox.bulkAdd([
+    { createdAt: at, op: { kind: 'upsert', table: 'calendar_days', row: { school_year_id: 'sy', date: '2026-11-20' }, onConflict: 'school_year_id,date' } },
+    { createdAt: at, op: { kind: 'update', table: 'enrollments', match: { id: 'e1' }, values: { left_on: '2026-11-14' } } },
+    { createdAt: at, op: { kind: 'delete', table: 'calendar_days', match: { school_year_id: 'sy', date: '2026-11-20' } } },
+    { createdAt: at, op: { kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' } },
+  ]);
+  const r = await syncOnce(db, remote);
+  expect(r).toMatchObject({ pushed: 4, pulled: true });
+  expect(remote.ops).toEqual(['upsert', 'update', 'delete', 'upload']);
+  expect(await db.outbox.count()).toBe(0);
+});
+
+it('pull fully replaces seats', async () => {
+  await db.seats.put({ id: 'old', planId: 'p0', row: 0, col: 0, learnerId: 'l0' });
+  remote.base.seats = [{ id: 's1', planId: 'p1', row: 0, col: 1, learnerId: 'l1' }];
+  await syncOnce(db, remote);
+  expect((await db.seats.toArray()).map(s => s.id)).toEqual(['s1']);
 });

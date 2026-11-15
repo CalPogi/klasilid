@@ -128,3 +128,14 @@ describe('corrections', () => {
     expect(r.pm).toMatchObject({ status: 'excused', correctionId: 'e' });
   });
 });
+
+describe('review setting', () => {
+  it('reviewOutside false drops stray taps but still counts after-closing arrivals', () => {
+    const stray = computeDay(day({ taps: [tap('a', '07:00:00'), tap('b', '10:00:00')], reviewOutside: false }));
+    expect(stray.review).toEqual([]);
+    expect(stray.am.status).toBe('on_time');
+    const late = computeDay(day({ taps: [tap('a', '08:20:00')], reviewOutside: false }));
+    expect(late.am).toMatchObject({ status: 'late' });
+    expect(late.am.flags).toContain('after_closing');
+  });
+});

@@ -2,22 +2,32 @@ import Dexie, { type Table } from 'dexie';
 import type { Correction, IsoDate, Tap, TapWindow } from '@klasilid/core';
 
 // Local rows are camelCase versions of the server tables (supabase/migrations). Ids are client-generated UUIDs.
-export interface LClass { id: string; schoolYearId: string; subject: string; grade: number; section: string; isAdvisory: boolean; ignoreRepeatMinutes: 1 | 3 | 5 | 10 }
-export interface LLearner { id: string; lastName: string; firstName: string; middleName?: string; sex: 'M' | 'F' }
+export interface LClass { id: string; schoolYearId: string; subject: string; grade: number; section: string; isAdvisory: boolean; ignoreRepeatMinutes: 1 | 3 | 5 | 10; reviewOutside?: boolean }
+export interface LLearner { id: string; lastName: string; firstName: string; middleName?: string; sex: 'M' | 'F'; lrn?: string; guardianName?: string; guardianPhone?: string }
 export interface LEnrollment { id: string; classId: string; learnerId: string; joinedOn: IsoDate; leftOn?: IsoDate }
 export interface LCard { uid: string; learnerId: string; active: boolean }
 export interface LTapWindow extends TapWindow { id: string; classId: string }
 export interface LTap extends Tap { deviceId: string; clockSuspect: boolean }
 export interface LCorrection extends Correction { learnerId: string; classId: string; date: IsoDate; createdBy: string }
 export interface LCalendarDay { id: string; schoolYearId: string; date: IsoDate; type: 'holiday' | 'half' | 'suspension' | 'event'; name: string }
-export interface LSeatPlan { id: string; classId: string; rows: number; cols: number; effectiveFrom: IsoDate }
+export interface LSeatPlan { id: string; classId: string; rows: number; cols: number; effectiveFrom: IsoDate; createdAt?: string }
+export interface LSeat { id: string; planId: string; row: number; col: number; learnerId: string }
+export interface LPref { key: string; value: unknown }
 export interface LMeta { key: string; value: unknown }
 /** Excuse-letter photo kept on this device until plan 2b uploads it. */
 export interface LPhoto { correctionId: string; blob: Blob; name: string }
 
+type Row = Record<string, unknown>;
+export type ServerTable = 'attendance_corrections' | 'tap_windows' | 'seat_plans' | 'seats' | 'calendar_days' | 'cards' | 'enrollments'
+  | 'learners' | 'classes' | 'profiles';
+/** A queued change. The server's row-level security and column grants decide what each may touch. */
 export type OutboxOp =
-  | { kind: 'insert'; table: 'attendance_corrections' | 'tap_windows' | 'seat_plans' | 'calendar_days'; row: Record<string, unknown> }
-  | { kind: 'rpc'; fn: 'setup_class' | 'add_learner'; args: Record<string, unknown> };
+  | { kind: 'insert'; table: ServerTable; row: Row }
+  | { kind: 'upsert'; table: ServerTable; row: Row; onConflict: string }
+  | { kind: 'update'; table: ServerTable; match: Row; values: Row }
+  | { kind: 'delete'; table: ServerTable; match: Row }
+  | { kind: 'upload'; bucket: 'excuse-letters'; path: string; correctionId: string }   // the photo is read from db.photos when pushed
+  | { kind: 'rpc'; fn: 'setup_class' | 'add_learner'; args: Row };
 export interface OutboxItem { seq?: number; op: OutboxOp; createdAt: string }
 /** A queued change the server refused; kept so it is never silently lost, and shown to the teacher. */
 export interface RejectedItem { id?: number; op: OutboxOp; createdAt: string; error: string; at: string }
@@ -36,6 +46,8 @@ export class KlasilidDb extends Dexie {
   meta!: Table<LMeta, string>;
   photos!: Table<LPhoto, string>;
   rejected!: Table<RejectedItem, number>;
+  seats!: Table<LSeat, string>;
+  prefs!: Table<LPref, string>;
 
   constructor(name: string) {
     super(name);
@@ -54,6 +66,7 @@ export class KlasilidDb extends Dexie {
     });
     this.version(2).stores({ photos: 'correctionId' });
     this.version(3).stores({ rejected: '++id' });
+    this.version(4).stores({ seats: 'id, planId', prefs: 'key' });
   }
 }
 

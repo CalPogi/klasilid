@@ -15,6 +15,8 @@ export interface DayInput {
   /** ISO UTC. For past dates pass any time after the day ends. */
   now: string;
   ignoreRepeatMinutes: 1 | 3 | 5 | 10;
+  /** Teacher setting: false ignores taps outside every window instead of listing them for review. Default true. */
+  reviewOutside?: boolean;
 }
 
 const END_OF_DAY = 24 * 60;
@@ -87,7 +89,7 @@ export function computeDay(input: DayInput): DayResult {
       half[s].correctionId = newest.id;
     }
   }
-  return { am: half.am, pm: half.pm, review };
+  return { am: half.am, pm: half.pm, review: input.reviewOutside === false ? [] : review };
 }
 
 /** Sorted by time; drops any tap within `minutes` of the last kept tap. */

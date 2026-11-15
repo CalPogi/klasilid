@@ -23,7 +23,7 @@
   const db = deps?.db ?? openDb(dbName(mode));
   const sb = !deps && mode === 'online' ? createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY) : null;
   const auth = deps ? deps.auth : sb ? supabaseAuth(sb) : null;
-  const remote = deps ? deps.remote : sb ? supabaseRemote(sb) : null;
+  const remote = deps ? deps.remote : sb ? supabaseRemote(sb, db) : null;
   // Dev only: ?now=2026-11-13T01:00:00Z previews another moment (e.g. a school day).
   const fixed = env.DEV ? new URLSearchParams(location.search).get('now') : null;
   const now = () => (fixed ? new Date(fixed) : new Date());
