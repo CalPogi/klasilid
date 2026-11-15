@@ -86,6 +86,11 @@ describe('time out', () => {
   it('an absent half-day gets no no_time_out flag', () => {
     expect(computeDay(day()).pm.flags).toEqual([]);
   });
+  it('an out tap with no in tap goes to review', () => {
+    const r = computeDay(day({ taps: [tap('o', '11:45:00')] }));
+    expect(r.am.status).toBe('absent');
+    expect(r.review.map(x => x.tapId)).toEqual(['o']);
+  });
   it('a tap after the last window closes goes to review', () => {
     const r = computeDay(day({ taps: [tap('p', '13:00:00'), tap('z', '17:30:00')] }));
     expect(r.review.map(x => x.tapId)).toEqual(['z']);
