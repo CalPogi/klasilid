@@ -50,7 +50,7 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
   const rows: LearnerDay[] = learners.map(learner => {
     const mine = taps.filter(t => ownerOf.get(t.cardUid) === learner.id);
     const r = computeDay({
-      date, dayType, now: now.toISOString(), windows, ignoreRepeatMinutes: cls?.ignoreRepeatMinutes ?? 3,
+      date, dayType, now: now.toISOString(), windows, ignoreRepeatMinutes: cls?.ignoreRepeatMinutes ?? 3, reviewOutside: cls?.reviewOutside ?? true,
       taps: mine, corrections: corrections.filter(c => c.learnerId === learner.id),
     });
     return { learner, am: r.am, pm: r.pm, review: needsSetup ? [] : r.review, taps: mine };

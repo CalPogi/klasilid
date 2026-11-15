@@ -10,6 +10,8 @@
   import SeatPlan from './pages/SeatPlan.svelte';
   import Students from './pages/Students.svelte';
   import Calendar from './pages/Calendar.svelte';
+  import Settings from './pages/Settings.svelte';
+  import { applyTheme, savedTheme } from './lib/settings';
   import RegisterCardModal from './components/RegisterCardModal.svelte';
   import type { LLearner } from './lib/db';
   import Setup from './pages/Setup.svelte';
@@ -33,6 +35,7 @@
   const fixed = env.DEV ? new URLSearchParams(location.search).get('now') : null;
   const now = () => (fixed ? new Date(fixed) : new Date());
 
+  applyTheme(savedTheme());
   let session: Session | null = $state(null);
   let ready = $state(false);
   let classId = $state('');
@@ -109,6 +112,8 @@
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
+    {:else if $route === 'settings'}
+      <Settings {db} {classId} userId={session.userId} {now} onregister={() => register({ bulk: true })} />
     {:else if $route === 'calendar'}
       <Calendar {db} {classId} {schoolYearId} {now} />
     {:else if $route === 'students'}
