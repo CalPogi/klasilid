@@ -29,8 +29,16 @@ it('fmtTime shows Manila time', () => {
 
 it('shows the learner, the half-day and the current status with its tap time', () => {
   open();
-  expect(screen.getByRole('dialog', { name: /Ana Abad/ })).toBeTruthy();
-  expect(screen.getByText('Morning · now Late · 7:31 AM')).toBeTruthy();
+  expect(screen.getByRole('dialog', { name: 'Ana Abad' })).toBeTruthy();
+  expect(screen.getByText('Morning · Tapped in at 7:31 AM · now late')).toBeTruthy();
+});
+
+it('status is chosen with the four buttons from the mockup', async () => {
+  open();
+  const radios = screen.getAllByRole('radio').map(r => r.textContent);
+  expect(radios).toEqual(['Present', 'Late', 'Absent', 'Excused']);
+  await fireEvent.click(screen.getByRole('radio', { name: 'Excused' }));
+  expect(screen.getByRole('radio', { name: 'Excused' }).getAttribute('aria-checked')).toBe('true');
 });
 
 it('Save is disabled until a reason is chosen', async () => {
@@ -43,7 +51,7 @@ it('Save is disabled until a reason is chosen', async () => {
 it('choosing Other shows a required text box; Save stays disabled while it is blank', async () => {
   open();
   await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'other' } });
-  const box = screen.getByLabelText('What happened?') as HTMLTextAreaElement;
+  const box = screen.getByLabelText('Type the reason') as HTMLInputElement;
   expect(box.required).toBe(true);
   expect(save().disabled).toBe(true);
   await fireEvent.input(box, { target: { value: '  ' } });
@@ -54,7 +62,7 @@ it('choosing Other shows a required text box; Save stays disabled while it is bl
 
 it('saving writes the correction and calls onsaved', async () => {
   const { db, onsaved } = open();
-  await fireEvent.change(screen.getByLabelText('New status'), { target: { value: 'absent' } });
+  await fireEvent.click(screen.getByRole('radio', { name: 'Absent' }));
   await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'tapped_by_classmate' } });
   await fireEvent.click(save());
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
@@ -68,10 +76,10 @@ it('the reason list has exactly the seven labels in order', () => {
     'School activity or errand', 'Arrived but did not tap', 'Other…']);
 });
 
-it('Escape and the close button call onclose without saving', async () => {
+it('Escape, a click outside and Cancel call onclose without saving', async () => {
   const { db, onclose } = open();
   await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
-  await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  await fireEvent.click(screen.getByRole('dialog'));
   await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(onclose).toHaveBeenCalledTimes(3);
   expect(await db.corrections.count()).toBe(0);

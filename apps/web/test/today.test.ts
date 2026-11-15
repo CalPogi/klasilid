@@ -57,8 +57,8 @@ it('Today lists taps from unregistered cards and warns about a wrong reader cloc
     { id: 's1', deviceId: 'd', cardUid: 'CCCCCCCC', at: at('07:06'), clockSuspect: true },
   ]);
   await show(db);
-  expect(await screen.findByText('DEADBEEF')).toBeTruthy();
-  expect(screen.getByText(/The reader's clock looked wrong for 1 tap/)).toBeTruthy();
+  expect((await screen.findAllByText(/DEADBEEF · 7:05 AM/)).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/clock looked wrong for 1 tap/).length).toBeGreaterThan(0);
 });
 
 it('Today on a weekend or holiday says there are no classes instead of showing counts', async () => {
@@ -66,4 +66,12 @@ it('Today on a weekend or holiday says there are no classes instead of showing c
   render(Today, { db, classId: 'c1', teacherId: 't', displayName: 'T', now: () => new Date(at('09:00', '2026-11-15')) });
   expect(await screen.findByText('No classes today')).toBeTruthy();
   expect(screen.queryByRole('group', { name: 'In class' })).toBeNull();
+});
+
+it('Find a student lists matching learners and opens the correction modal', async () => {
+  await show();
+  await screen.findByRole('group', { name: 'In class' });
+  await fireEvent.input(screen.getByPlaceholderText('Find a student'), { target: { value: 'carl' } });
+  await fireEvent.click(screen.getByRole('option', { name: /Carla Castro/ }));
+  expect(screen.getByRole('dialog', { name: 'Carla Castro' })).toBeTruthy();
 });

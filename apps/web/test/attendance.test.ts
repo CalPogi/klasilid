@@ -125,3 +125,18 @@ it('uses the class ignoreRepeatMinutes', async () => {
   expect(d2.rows[1].review).toEqual([]);
   expect(d2.rows[1].am.flags).toContain('after_closing');
 });
+
+it('dayLetter turns a day\'s two halves into one grid letter', async () => {
+  const { dayLetter } = await import('../src/lib/attendance');
+  const h = (status: string) => ({ status, flags: [] }) as never;
+  expect(dayLetter(h('on_time'), h('on_time'))).toBe('P');
+  expect(dayLetter(h('late'), h('on_time'))).toBe('L');
+  expect(dayLetter(h('absent'), h('absent'))).toBe('A');
+  expect(dayLetter(h('on_time'), h('absent'))).toBe('H');      // half day present
+  expect(dayLetter(h('absent'), h('late'))).toBe('H');
+  expect(dayLetter(h('excused'), h('excused'))).toBe('E');
+  expect(dayLetter(h('excused'), h('absent'))).toBe('E');
+  expect(dayLetter(h('on_time'), h('no_school'))).toBe('P');    // half day schedule: morning only
+  expect(dayLetter(h('pending'), h('pending'))).toBe('N');
+  expect(dayLetter(h('on_time'), h('pending'))).toBe('P');
+});

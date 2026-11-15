@@ -3,12 +3,13 @@
   import Shell from './components/Shell.svelte';
   import { openDb, pendingCount } from './lib/db';
   import { supabaseRemote } from './lib/remote-supabase';
-  import { go, route } from './lib/router';
+  import { go, route, SOON, type SoonRoute } from './lib/router';
   import { modeFromEnv, signOut, startSession, supabaseAuth, type Session } from './lib/session';
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
   import Setup from './pages/Setup.svelte';
   import SignIn from './pages/SignIn.svelte';
+  import Soon from './pages/Soon.svelte';
   import Today from './pages/Today.svelte';
 
   const db = openDb();
@@ -69,9 +70,12 @@
   <SignIn {db} {auth} onsignedin={opened} />
 {:else if session}
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
-  <Shell current={$route} {className} pendingChanges={pending} userName={session.displayName} onsignout={auth ? leave : undefined}>
+  <Shell current={$route} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
+    classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
     {#if $route === 'setup' || !classId}
       <Setup {db} {now} onfinish={async () => { await sync(); go('today'); }} />
+    {:else if $route in SOON}
+      <Soon title={SOON[$route as SoonRoute]} />
     {:else if $route === 'attendance'}
       <Attendance {db} {classId} teacherId={session.userId} {now} />
     {:else}
@@ -82,6 +86,6 @@
 
 <style>
   .boot { padding: 40px; color: var(--muted); }
-  .demo { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; background: var(--dark); color: var(--on-dark); font-size: 12px;
-    font-weight: 700; padding: 3px 12px; border-radius: 0 0 10px 10px; }
+  .demo { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 40; pointer-events: none; white-space: nowrap; background: var(--dark); color: var(--on-dark); font-size: 12px;
+    font-weight: 700; padding: 3px 12px; border-radius: 10px 10px 0 0; }
 </style>

@@ -21,24 +21,26 @@ it('Attendance pages 38 learners as 12 per page', async () => {
   expect(within(body()).getAllByRole('row')).toHaveLength(2);
 });
 
-it('Attendance day select lists school days newest first, skipping weekends and holidays', async () => {
+it('the grid has a column for each school day of the month, skipping weekends and holidays', async () => {
   const db = await classDb();
   await db.calendarDays.put({ id: 'h', schoolYearId: 'sy', date: '2026-11-11', type: 'holiday', name: 'Test holiday' });
   render(Attendance, { db, classId: 'c1', teacherId: 't', displayName: 'T', now: () => NOW });
-  const day = (await screen.findByLabelText('Day')) as HTMLSelectElement;
-  await vi.waitFor(() => expect(day.options.length).toBeGreaterThan(5));
-  expect([...day.options].slice(0, 5).map(o => o.textContent)).toEqual(['Today · Fri, Nov 13', 'Thu, Nov 12', 'Tue, Nov 10', 'Mon, Nov 9', 'Fri, Nov 6']);
+  await vi.waitFor(() => expect(document.querySelectorAll('#histTbl thead th').length).toBeGreaterThan(3));
+  const heads = [...document.querySelectorAll('#histTbl thead th')].map(th => th.textContent);
+  expect(heads.slice(0, 1)).toEqual(['Learner']);
+  expect(heads.slice(1, -2)).toEqual(['M2', 'T3', 'W4', 'T5', 'F6', 'M9', 'T10', 'T12', 'F13']);
+  expect(heads.slice(-2)).toEqual(['Absent', 'Late']);
   expect((screen.getByLabelText('Month') as HTMLSelectElement).tagName).toBe('SELECT');
 });
 
-it('a saved correction updates the row status and shows "corrected"', async () => {
+it('a saved correction updates the cell and marks it corrected', async () => {
   const db = await classDb();
   render(Attendance, { db, classId: 'c1', teacherId: 't', displayName: 'T', now: () => NOW });
-  await fireEvent.click(await screen.findByRole('button', { name: 'Change Carla Castro morning' }));
-  await fireEvent.change(screen.getByLabelText('New status'), { target: { value: 'excused' } });
+  const cell = await screen.findByRole('button', { name: /^Carla Castro, today/ });
+  expect(cell.textContent).toBe('A');
+  await fireEvent.click(cell);
+  await fireEvent.click(screen.getByRole('radio', { name: 'Excused' }));
   await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'sick' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Save change' }));
-  const row = (await screen.findByText('corrected')).closest('tr')!;
-  expect(within(row).getByText('Carla Castro')).toBeTruthy();
-  expect(within(row).getByRole('button', { name: 'Change Carla Castro morning' }).textContent).toContain('Excused');
+  await vi.waitFor(() => expect(screen.getByRole('button', { name: /^Carla Castro, today.*corrected/ }).textContent).toBe('E'));
 });

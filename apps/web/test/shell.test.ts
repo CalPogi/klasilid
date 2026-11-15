@@ -1,43 +1,49 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import Shell from '../src/components/Shell.svelte';
 
 const children = createRawSnippet(() => ({ render: () => '<p>page</p>' }));
-const props = (over = {}) => ({ current: 'attendance' as const, className: 'Gr. 6 Diamond', pendingChanges: 0, children, ...over });
+const props = (over = {}) => ({
+  current: 'attendance' as const, className: 'Gr. 6 Diamond', userName: "Ma'am Lou", children,
+  classes: [{ label: 'Advisory · Gr. 6 Diamond', advisory: true }], ...over,
+});
+const nav = () => screen.getByRole('navigation', { name: 'Main' });
+const link = (name: string) => [...nav().querySelectorAll('a')].find(a => a.textContent?.trim() === name)!;
 
-it('shows Today and Attendance as links and marks the current one', () => {
+it('has every sidebar entry from the mockup and marks the current one', () => {
   render(Shell, props());
-  const side = screen.getByRole('navigation', { name: 'Main' });
-  const att = [...side.querySelectorAll('a')].find(a => a.textContent?.includes('Attendance'))!;
-  expect(att.getAttribute('aria-current')).toBe('page');
-  const today = [...side.querySelectorAll('a')].find(a => a.textContent?.includes('Today'))!;
-  expect(today.getAttribute('aria-current')).toBeNull();
-  expect(screen.getByText('Advisory · Gr. 6 Diamond')).toBeTruthy();
+  for (const name of ['Today', 'Seat plan', 'Attendance', 'Students', 'Report card grades', 'Reports', 'School calendar', 'Door reader', 'Settings'])
+    expect(link(name), name).toBeTruthy();
+  expect(link('Attendance').getAttribute('aria-current')).toBe('page');
+  expect(link('Today').getAttribute('aria-current')).toBeNull();
+  expect(screen.getByText('Advisory · Gr. 6 Diamond', { selector: '.glabel' })).toBeTruthy();
 });
 
-it('shows plan-2b pages as disabled with "Coming soon"', () => {
+it('My classes starts closed and opens', async () => {
   render(Shell, props());
-  const seat = screen.getAllByRole('button', { name: /Seat plan/ })[0] as HTMLButtonElement;
-  expect(seat.disabled).toBe(true);
-  expect(seat.title).toBe('Coming soon');
+  const toggle = screen.getByRole('button', { name: /My classes/ });
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(document.getElementById('clsList')!.hidden).toBe(true);
+  await fireEvent.click(toggle);
+  expect(document.getElementById('clsList')!.hidden).toBe(false);
 });
 
-it('phone Menu toggles a dropdown and the icon state', async () => {
-  render(Shell, props());
-  const menu = screen.getByRole('button', { name: 'Menu' });
-  expect(menu.getAttribute('aria-expanded')).toBe('false');
-  await fireEvent.click(menu);
-  expect(menu.getAttribute('aria-expanded')).toBe('true');
-  expect(screen.getByRole('menu')).toBeTruthy();
-  await fireEvent.click(menu);
-  expect(screen.queryByRole('menu')).toBeNull();
+it('the account button opens a menu with Sign out', async () => {
+  const onsignout = vi.fn();
+  render(Shell, props({ onsignout }));
+  const me = screen.getByRole('button', { name: /Ma'am Lou/ });
+  expect(screen.getByText('ML')).toBeTruthy();
+  await fireEvent.click(me);
+  expect(me.getAttribute('aria-expanded')).toBe('true');
+  await fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+  expect(onsignout).toHaveBeenCalledOnce();
 });
 
-it('shows "N changes waiting to sync" only when pendingChanges > 0', () => {
-  const { unmount } = render(Shell, props());
-  expect(screen.queryByText(/waiting to sync/)).toBeNull();
-  unmount();
-  render(Shell, props({ pendingChanges: 3 }));
-  expect(screen.getByText('3 changes waiting to sync')).toBeTruthy();
+it('the menu button opens the sidebar on small screens', async () => {
+  render(Shell, props());
+  const btn = screen.getByRole('button', { name: 'Open menu' });
+  await fireEvent.click(btn);
+  expect(btn.getAttribute('aria-expanded')).toBe('true');
+  expect(document.querySelector('.app')!.classList.contains('nav-open')).toBe(true);
 });

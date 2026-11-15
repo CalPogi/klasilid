@@ -102,3 +102,19 @@ export async function monthsWithAttendance(db: KlasilidDb, classId: string, toda
   }
   return out;
 }
+
+export type DayLetter = 'P' | 'L' | 'A' | 'E' | 'H' | 'N';
+
+/**
+ * One letter for the month grid (mockup legend): P present, L late, A absent, E excused,
+ * H half day (present one half, absent the other), N nothing yet. No-school halves are ignored.
+ */
+export function dayLetter(am: HalfDay, pm: HalfDay): DayLetter {
+  const s = [am.status, pm.status].filter(x => x !== 'no_school' && x !== 'pending');
+  if (!s.length) return 'N';
+  const present = s.some(x => x === 'on_time' || x === 'late');
+  if (present && s.includes('absent')) return 'H';
+  if (s.includes('excused') && !present) return 'E';
+  if (s.every(x => x === 'absent')) return 'A';
+  return s.includes('late') ? 'L' : 'P';
+}

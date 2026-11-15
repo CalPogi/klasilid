@@ -11,13 +11,19 @@ export interface SetupInput {
   learners: SetupLearner[];
 }
 
+export const DEFAULT_SCHOOL = 'San Isidro West Central School';
 export const SECTIONS = ['Diamond', 'Ruby', 'Pearl', 'Sapphire', 'Emerald', 'Jade', 'Opal', 'Topaz', 'Amethyst', 'Garnet'];
 export const SCHOOL_YEARS = [{ label: 'SY 2026–2027', startsOn: '2026-06-01', endsOn: '2027-04-30' }];
-/** Every 5 minutes from 05:00 to 18:00, as 'HH:MM'. */
-export const TIMES = Array.from({ length: (18 - 5) * 12 + 1 }, (_, i) => {
-  const m = 5 * 60 + i * 5;
+/** Every 15 minutes from 5:00 AM to 7:00 PM, as 'HH:MM' (the mockup's time dropdowns). */
+export const TIMES = Array.from({ length: (19 - 5) * 4 + 1 }, (_, i) => {
+  const m = 5 * 60 + i * 15;
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 });
+/** '13:15' → '1:15 PM' */
+export function timeLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
 export const DEFAULT_WINDOWS: SetupWindow[] = [
   { session: 'am', kind: 'in', opens: '06:30', lateAfter: '07:15', closes: '08:00' },
   { session: 'am', kind: 'out', opens: '11:30', lateAfter: null, closes: '12:15' },
