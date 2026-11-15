@@ -16,3 +16,11 @@ a.btn { text-decoration: none; }
   .wscrim { position: fixed; }
   .page.on.fill { height: auto; }
 }
+
+/* The mockup let web desks auto-fill (10 per row); the room's seats per row must show as set by the teacher (spec §7.2). */
+.panel .desks { grid-template-columns: repeat(var(--cols, 5), minmax(var(--minw, 60px), 1fr)); }
+/* The page fits the window; a tall room scrolls inside its panel (owner rule: no page scrolling on a laptop). */
+.page.fill[data-page='seat'] .cls-head { margin-bottom: 0; }
+.page.fill[data-page='seat'] > .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page.fill[data-page='seat'] .desk-scroll { flex: 1; min-height: 0; overflow: auto; }
+.page.fill[data-page='seat'] .ed-body { flex: 1; min-height: 0; overflow: auto; }

@@ -66,13 +66,17 @@ export async function seedDemo(db: KlasilidDb, now: Date): Promise<void> {
     });
   });
 
-  await db.transaction('rw', [db.classes, db.learners, db.cards, db.enrollments, db.tapWindows, db.taps, db.meta], async () => {
+  await db.transaction('rw', [db.classes, db.learners, db.cards, db.enrollments, db.tapWindows, db.taps, db.seatPlans, db.seats, db.meta], async () => {
     await db.classes.put({ id: DEMO_CLASS_ID, schoolYearId: 'demo-sy', subject: 'Advisory', grade: 6, section: 'Diamond', isAdvisory: true, ignoreRepeatMinutes: 3 });
     await db.learners.bulkPut(learners);
     await db.cards.bulkPut(cards);
     await db.enrollments.bulkPut(enrollments);
     await db.tapWindows.bulkPut(windows);
     await db.taps.bulkPut(taps);
+    // An 8×5 room, everyone seated alphabetically (the mockup's default).
+    const order = [...learners].sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
+    await db.seatPlans.put({ id: 'demo-plan', classId: DEMO_CLASS_ID, rows: 8, cols: 5, effectiveFrom: '2026-06-01', createdAt: '2026-06-01T00:00:00.000Z' });
+    await db.seats.bulkPut(order.map((l, k) => ({ id: `demo-s-${k}`, planId: 'demo-plan', row: Math.floor(k / 5), col: k % 5, learnerId: l.id })));
     await db.meta.put({ key: 'demoSeeded', value: true });
   });
 }
