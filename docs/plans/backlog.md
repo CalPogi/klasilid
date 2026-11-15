@@ -36,8 +36,14 @@ Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items b
 - Families can't read `seats`; if the parent view shows the child's seat, add a definer function that returns only their own child's seat.
 
 ## Plan 5 (reader firmware)
-- Upload response is `{ acked: number[], rejected: number[] }`. Mark `acked` as sent and drop `rejected` (unreadable UID).
-- Send `tappedAt` as ISO 8601 with `Z`. The server stores a time without a time zone as suspect.
+- Done in plan 5: `acked` and `rejected` both leave the reader's queue; `tappedAt` is sent with `Z`.
+- Still to do at bring-up: run the on-board Unity tests (`docs/reader/bring-up.md` step 4) and record the result.
+
+## Plan 6 (Windows/Android apps)
+- Local relay: read `GET /taps?since=` from the reader (header `x-pairing-token`) when there's no internet and post the taps to the server. The response has the upload body shape `{deviceId, taps}`.
+- Set the reader's clock from the app while paired (spec §8); the reader has no endpoint for it yet.
+- Over-the-air firmware update before the pilot; until then, updates go over USB.
+- If Supabase's certificate moves to a root not in `firmware/src/net/roots.h`, uploads fail with a TLS error; add the root and reflash.
 
 ## Later
 - A reader moved to another class hands its old taps to the new teacher; scope taps by the device's class at tap time if readers ever move.

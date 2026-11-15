@@ -281,18 +281,18 @@ Every tap has a unique ID. It can reach the server by two paths: the reader uplo
   - Append it to a flash log (LittleFS). The log must hold at least 30 school days of taps for 50 learners.
   - Give feedback on the OLED and buzzer within half a second: time, plus "Recorded". Name and status show when the reader has a roster cached.
 - **Tap ID:** `deviceId-sequence-tappedAtMillis` (set by the server). The sequence number survives reboots; the time in the ID means a wiped reader that restarts its sequence never collides with old taps, while a retry of the same tap still deduplicates.
-- **Clock:** the DS3231 is the time source. It resyncs from NTP whenever the reader has internet, and the app can also set it while paired. Each tap stores its clock source and last-sync time, so bad clock data can be spotted.
+- **Clock:** the DS3231 is the time source. It resyncs from NTP whenever the reader has internet, and the app can also set it while paired (plan 6). Each tap stores its clock source and last-sync time, so bad clock data can be spotted.
 - **Network modes (decided: Wi-Fi, not Bluetooth):**
   1. joins the school Wi-Fi;
   2. if that's absent, runs its own hotspot, **"Klasilid-Diamond"**.
 - **Local API** for the teacher's app on the same network:
-  - list taps since a sequence number;
-  - status (clock, battery, storage, last upload);
-  - receive the cached roster and today's windows;
-  - register mode.
-  - Every call needs a pairing token set during setup.
+  - list taps since a sequence number (`GET /taps?since=`);
+  - status (`GET /status`: clock, last sync, unsent taps, last upload, Wi-Fi).
+  - Every call needs the pairing code set during setup (header `x-pairing-token`).
+- **Roster (plan 5):** the reader pulls its class's card list (short names such as "Ana A.") and today's tap windows from the `roster` server function, on connect and every 10 minutes, and keeps a copy on flash so names show offline. The app doesn't push it.
+- **Registering cards (plan 5):** there is no separate register mode. A new card is registered by tapping it normally while the app waits for an unknown card (plan 2b).
 - **Upload:** when online, the reader posts unsent taps to the `tap` server function with its device key and marks them sent when they come back in `acked`. Taps in `rejected` (unreadable card UID) are dropped. A tap with an unreadable or time-zone-less time is still stored, using the server's time, and flagged. Retries back off.
-- **Setup:** first boot opens the hotspot with a small setup page for Wi-Fi details and pairing. The setup wizard walks the teacher through it.
+- **Setup:** first boot opens the hotspot with a small setup page for Wi-Fi details and pairing. The setup wizard walks the teacher through it. Once a pairing code is set, the setup page asks for it before showing or saving anything. Step by step: `docs/reader/bring-up.md`.
 - Over-the-air firmware update: builder's call, recommended.
 
 **Limits to accept:** card UIDs can be cloned, and a student can tap a friend's card. Mitigations are the seat-plan check (§7.2), corrections, and instant card replacement.
