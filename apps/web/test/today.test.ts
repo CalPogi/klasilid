@@ -75,3 +75,10 @@ it('Find a student lists matching learners and opens the correction modal', asyn
   await fireEvent.click(screen.getByRole('option', { name: /Carla Castro/ }));
   expect(screen.getByRole('dialog', { name: 'Carla Castro' })).toBeTruthy();
 });
+
+it('Today tells the teacher about changes the server refused', async () => {
+  const db = await classDb();
+  await db.rejected.add({ op: { kind: 'insert', table: 'attendance_corrections', row: {} }, createdAt: at('07:00'), error: 'permission denied', at: at('08:00') });
+  await show(db);
+  expect(await screen.findByText('1 change the server refused')).toBeTruthy();
+});

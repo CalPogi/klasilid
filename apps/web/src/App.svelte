@@ -4,7 +4,7 @@
   import { openDb, pendingCount } from './lib/db';
   import { supabaseRemote } from './lib/remote-supabase';
   import { go, route, SOON, type SoonRoute } from './lib/router';
-  import { modeFromEnv, signOut, startSession, supabaseAuth, type Session } from './lib/session';
+  import { dbName, modeFromEnv, signOut, startSession, supabaseAuth, type Session } from './lib/session';
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
   import Setup from './pages/Setup.svelte';
@@ -12,12 +12,18 @@
   import Soon from './pages/Soon.svelte';
   import Today from './pages/Today.svelte';
 
-  const db = openDb();
+  import type { AuthPort, Mode } from './lib/session';
+  import type { KlasilidDb } from './lib/db';
+  import type { Remote } from './lib/sync';
+
+  // Tests pass their own pieces; the real app builds them from the environment.
+  let { deps }: { deps?: { db: KlasilidDb; mode: Mode; auth: AuthPort | null; remote: Remote | null } } = $props();
   const env = import.meta.env;
-  const mode = modeFromEnv(env);
-  const sb = mode === 'online' ? createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY) : null;
-  const auth = sb ? supabaseAuth(sb) : null;
-  const remote = sb ? supabaseRemote(sb) : null;
+  const mode = deps?.mode ?? modeFromEnv(env);
+  const db = deps?.db ?? openDb(dbName(mode));
+  const sb = !deps && mode === 'online' ? createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY) : null;
+  const auth = deps ? deps.auth : sb ? supabaseAuth(sb) : null;
+  const remote = deps ? deps.remote : sb ? supabaseRemote(sb) : null;
   // Dev only: ?now=2026-11-13T01:00:00Z previews another moment (e.g. a school day).
   const fixed = env.DEV ? new URLSearchParams(location.search).get('now') : null;
   const now = () => (fixed ? new Date(fixed) : new Date());
@@ -27,6 +33,7 @@
   let classId = $state('');
   let className = $state('');
   let pending = $state(0);
+  let firstSyncFailed = $state(false);
 
   async function refresh() {
     const saved = (await db.meta.get('classId'))?.value as string | undefined;
@@ -35,17 +42,19 @@
     className = cls ? `Gr. ${cls.grade} ${cls.section}` : '';
     pending = await pendingCount(db);
   }
-  async function sync() {
-    if (remote && session && navigator.onLine) await syncOnce(db, remote, now());
+  async function sync(): Promise<boolean> {
+    const r = remote && session && navigator.onLine ? await syncOnce(db, remote, now()) : null;
     await refresh();
+    return !!r?.pulled;
   }
+  /** Opens from local data at once; only a device with no class yet waits for the first sync before offering setup. */
   async function opened(s: Session | null) {
     session = s;
-    if (s) {
-      await sync();
-      if (!classId && $route !== 'setup') go('setup');
-    }
+    if (s) await refresh();
     ready = true;
+    if (!s || classId) { if (s) sync(); return; }
+    if (mode === 'demo' || (await sync()) || !remote) { if (!classId) go('setup'); }
+    else firstSyncFailed = !classId;
   }
   startSession(db, mode).then(opened);
 
@@ -72,8 +81,13 @@
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
   <Shell current={$route} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
     classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
-    {#if $route === 'setup' || !classId}
-      <Setup {db} {now} onfinish={async () => { await sync(); go('today'); }} />
+    {#if !classId && firstSyncFailed}
+      <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
+    {:else if !classId}
+      <Setup {db} {now} onfinish={async () => { await refresh(); go('today'); sync(); }} />
+    {:else if $route === 'setup'}
+      <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
+        <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
     {:else if $route === 'attendance'}

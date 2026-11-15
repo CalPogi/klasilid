@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { expect, it, vi } from 'vitest';
 import CorrectionModal from '../src/components/CorrectionModal.svelte';
 import type { LearnerDay } from '../src/lib/attendance';
@@ -35,7 +35,7 @@ it('shows the learner, the half-day and the current status with its tap time', (
 
 it('status is chosen with the four buttons from the mockup', async () => {
   open();
-  const radios = screen.getAllByRole('radio').map(r => r.textContent);
+  const radios = within(screen.getByRole('radiogroup', { name: 'Status' })).getAllByRole('radio').map(r => r.textContent);
   expect(radios).toEqual(['Present', 'Late', 'Absent', 'Excused']);
   await fireEvent.click(screen.getByRole('radio', { name: 'Excused' }));
   expect(screen.getByRole('radio', { name: 'Excused' }).getAttribute('aria-checked')).toBe('true');
@@ -83,4 +83,15 @@ it('Escape, a click outside and Cancel call onclose without saving', async () =>
   await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(onclose).toHaveBeenCalledTimes(3);
   expect(await db.corrections.count()).toBe(0);
+});
+
+it('the teacher can switch to the afternoon half before saving', async () => {
+  const { db, onsaved } = open();
+  await fireEvent.click(screen.getByRole('radio', { name: 'Afternoon' }));
+  expect(screen.getByText(/^Afternoon · No tap · now not yet/)).toBeTruthy();
+  await fireEvent.click(screen.getByRole('radio', { name: 'Excused' }));
+  await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'sick' } });
+  await fireEvent.click(save());
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(await db.corrections.toArray()).toMatchObject([{ session: 'pm', status: 'excused' }]);
 });

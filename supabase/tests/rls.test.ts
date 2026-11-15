@@ -121,6 +121,13 @@ describe('review fixes', () => {
       await db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'am', 'in', 400, 440, 480, '2099-01-01')`, [C]);
     });
   });
+  it("a class's first tap windows may be dated before today (setup synced late), later ones may not", async () => {
+    await as(db, T2, async () => {
+      for (const kind of ['in', 'out'])
+        await db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'am', $2, 390, ${kind === 'in' ? 435 : 'null'}, 480, '2026-01-05')`, [C2, kind]);
+      await expect(db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'pm', 'in', 750, 780, 810, '2026-01-04')`, [C2])).rejects.toThrow();
+    });
+  });
   it('only the school year admin edits the calendar', async () => {
     await as(db, T2, async () => {
       await expect(db.query(`insert into calendar_days(school_year_id, date, type, name) values ($1, '2026-12-01', 'suspension', 'Typhoon')`, [SY])).rejects.toThrow();

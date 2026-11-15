@@ -3,18 +3,52 @@ import { describe, expect, it, vi } from 'vitest';
 import { classDay } from '../src/lib/attendance';
 import { openDb, recordCorrection } from '../src/lib/db';
 import { DEMO_CLASS_ID, DEMO_TEACHER_ID, seedDemo } from '../src/lib/demo';
-import { modeFromEnv, signIn, signOut, startSession, WRONG_LOGIN, type AuthPort } from '../src/lib/session';
+import { dbName, modeFromEnv, signIn, signOut, startSession, WRONG_LOGIN, type AuthPort } from '../src/lib/session';
 import SignIn from '../src/pages/SignIn.svelte';
 
 const fresh = () => openDb('t-' + crypto.randomUUID());
-const fakeAuth = (ok = true): AuthPort & { calls: number } => ({
+const fakeAuth = (ok = true, userId = 'u-1'): AuthPort & { calls: number } => ({
   calls: 0,
   async signIn(email, password) {
     this.calls++;
     if (!ok || password !== 'right') throw new Error(WRONG_LOGIN);
-    return { userId: 'u-1', displayName: "Ma'am Test" };
+    return { userId, displayName: "Ma'am Test" };
   },
   async signOut() { this.calls++; },
+});
+
+describe('shared devices', () => {
+  it('demo and online keep separate local databases', () => {
+    expect(dbName('demo')).not.toBe(dbName('online'));
+  });
+
+  it('a different teacher signing in on this device starts with an empty local database', async () => {
+    const db = fresh();
+    await signIn(db, fakeAuth(true, 'u-a'), 'a', 'right');
+    await seedDemo(db, new Date('2026-11-13T04:00:00Z'));
+    await db.meta.delete('user'); // sign-out interrupted before it cleared the class: data and owner left behind
+    await signIn(db, fakeAuth(true, 'u-b'), 'b', 'right');
+    expect(await db.learners.count()).toBe(0);
+    expect((await db.meta.get('user'))?.value).toMatchObject({ userId: 'u-b' });
+  });
+
+  it("refuses a different teacher while the last teacher's changes are unsynced", async () => {
+    const db = fresh();
+    await signIn(db, fakeAuth(true, 'u-a'), 'a', 'right');
+    await recordCorrection(db, { learnerId: 'l', classId: 'c', date: '2026-11-13', session: 'am', status: 'absent', reason: 'sick', createdBy: 'u-a' });
+    await signOut(db, fakeAuth(true, 'u-a'));
+    await expect(signIn(db, fakeAuth(true, 'u-b'), 'b', 'right')).rejects.toThrow(/haven't synced yet/);
+    expect(await db.outbox.count()).toBe(1);
+    expect(await db.meta.get('user')).toBeUndefined();
+  });
+
+  it('sign-out with nothing waiting clears the local data', async () => {
+    const db = fresh();
+    await signIn(db, fakeAuth(true, 'u-a'), 'a', 'right');
+    await seedDemo(db, new Date('2026-11-13T04:00:00Z'));
+    await signOut(db, fakeAuth(true, 'u-a'));
+    expect(await db.learners.count()).toBe(0);
+  });
 });
 
 describe('session', () => {

@@ -19,6 +19,8 @@ export type OutboxOp =
   | { kind: 'insert'; table: 'attendance_corrections' | 'tap_windows' | 'seat_plans' | 'calendar_days'; row: Record<string, unknown> }
   | { kind: 'rpc'; fn: 'setup_class' | 'add_learner'; args: Record<string, unknown> };
 export interface OutboxItem { seq?: number; op: OutboxOp; createdAt: string }
+/** A queued change the server refused; kept so it is never silently lost, and shown to the teacher. */
+export interface RejectedItem { id?: number; op: OutboxOp; createdAt: string; error: string; at: string }
 
 export class KlasilidDb extends Dexie {
   classes!: Table<LClass, string>;
@@ -33,6 +35,7 @@ export class KlasilidDb extends Dexie {
   outbox!: Table<OutboxItem, number>;
   meta!: Table<LMeta, string>;
   photos!: Table<LPhoto, string>;
+  rejected!: Table<RejectedItem, number>;
 
   constructor(name: string) {
     super(name);
@@ -50,6 +53,7 @@ export class KlasilidDb extends Dexie {
       meta: 'key',
     });
     this.version(2).stores({ photos: 'correctionId' });
+    this.version(3).stores({ rejected: '++id' });
   }
 }
 

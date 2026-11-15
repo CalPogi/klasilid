@@ -20,9 +20,10 @@
   const STATUSES = ['on_time', 'late', 'absent', 'excused'] as const;
   const id = 'c-' + Math.random().toString(36).slice(2);
 
-  const half = $derived(day[session]);
+  let which: Session = $state(session); // the grid and lists pick a half; the teacher can switch (spec §7.1: corrections are per half-day)
+  const half = $derived(day[which]);
   const tapAt = $derived(day.taps.find(t => t.id === half.inTapId)?.at);
-  const meta = $derived(`${session === 'am' ? 'Morning' : 'Afternoon'} · ${tapAt ? `Tapped in at ${fmtTime(tapAt)}` : 'No tap'} · now ${STATUS_LABEL[half.status].toLowerCase()}`);
+  const meta = $derived(`${which === 'am' ? 'Morning' : 'Afternoon'} · ${tapAt ? `Tapped in at ${fmtTime(tapAt)}` : 'No tap'} · now ${STATUS_LABEL[half.status].toLowerCase()}`);
 
   let status: LCorrection['status'] = $state(day[session].status === 'absent' ? 'excused' : 'absent');
   let reason: CorrectionReason | '' = $state('');
@@ -37,7 +38,7 @@
     saving = true;
     try {
       const c = await recordCorrection(db, {
-        learnerId: day.learner.id, classId, date, session, status, reason, createdBy: teacherId,
+        learnerId: day.learner.id, classId, date, session: which, status, reason, createdBy: teacherId,
         ...(reason === 'other' ? { reasonText: reasonText.trim() } : {}),
       });
       if (photo) await db.photos.put({ correctionId: c.id, blob: photo, name: photo.name });
@@ -52,6 +53,12 @@
 <Modal labelledby={id} {onclose}>
   <h4 {id}>{day.learner.firstName} {day.learner.lastName}</h4>
   <div class="meta">{meta}</div>
+  <div class="seg halves" role="radiogroup" aria-label="Half-day">
+    {#each [['am', 'Morning'], ['pm', 'Afternoon']] as [h, label]}
+      <button type="button" role="radio" aria-checked={which === h} class:sel={which === h} disabled={day[h as Session].status === 'no_school'}
+        onclick={() => (which = h as Session)}>{label}</button>
+    {/each}
+  </div>
   <div class="seg" role="radiogroup" aria-label="Status">
     {#each STATUSES as s}
       <button type="button" role="radio" aria-checked={status === s} class:sel={status === s} onclick={() => (status = s)}>{STATUS_LABEL[s]}</button>
@@ -77,3 +84,7 @@
     <button class="btn" type="button" disabled={!ok} onclick={save}>Save change</button>
   </div>
 </Modal>
+
+<style>
+  .halves { grid-template-columns: repeat(2, 1fr); margin-bottom: 8px; }
+</style>

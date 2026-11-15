@@ -1,6 +1,7 @@
 import { computeDay } from '@klasilid/core';
 import { beforeEach, expect, it } from 'vitest';
 import { openDb, recordCorrection, type KlasilidDb, type LCorrection, type OutboxOp } from '../src/lib/db';
+import { RejectedError } from '../src/lib/remote-supabase';
 import { correctionFromRow, syncOnce, type Remote, type Snapshot } from '../src/lib/sync';
 
 const empty = (): Snapshot => ({ classes: [], learners: [], enrollments: [], cards: [], tapWindows: [], calendarDays: [], seatPlans: [], taps: [], corrections: [] });
@@ -12,9 +13,11 @@ class FakeRemote implements Remote {
   pushes = 0;
   failAfter = Infinity;
   failPull = false;
+  refuse = new Set<string>();
   base = empty();
   async push(op: OutboxOp) {
     if (this.pushes >= this.failAfter) throw new Error('network down');
+    if (op.kind === 'insert' && this.refuse.has(op.row.id as string)) throw new RejectedError('new row violates row-level security policy');
     this.pushes++;
     if (op.kind === 'insert') { if (!this.rows.has(op.row.id as string)) this.rows.set(op.row.id as string, op.row); }
     else this.rpcs.push(op);
@@ -39,7 +42,7 @@ it('pushes every outbox item in order, then pulls', async () => {
   const a = await recordCorrection(db, corr(), new Date('2026-11-13T01:00:00Z'));
   const b = await recordCorrection(db, corr({ session: 'pm' }), new Date('2026-11-13T02:00:00Z'));
   const r = await syncOnce(db, remote, new Date('2026-11-13T03:00:00Z'));
-  expect(r).toEqual({ pushed: 2, pulled: true });
+  expect(r).toEqual({ pushed: 2, pulled: true, rejected: 0 });
   expect([...remote.rows.keys()]).toEqual([a.id, b.id]);
   expect(await db.outbox.count()).toBe(0);
   expect((await db.meta.get('lastPull'))?.value).toBe('2026-11-13T03:00:00.000Z');
@@ -54,7 +57,7 @@ it('network drops mid-push: sent items are removed, the rest stay, no pull', asy
   expect(await db.outbox.count()).toBe(2);
   expect(await db.meta.get('lastPull')).toBeUndefined();
   remote.failAfter = Infinity;
-  expect(await syncOnce(db, remote)).toEqual({ pushed: 2, pulled: true });
+  expect(await syncOnce(db, remote)).toEqual({ pushed: 2, pulled: true, rejected: 0 });
   expect(remote.rows.size).toBe(3);
   expect(await db.outbox.count()).toBe(0);
 });
@@ -98,4 +101,18 @@ it('offline (pull throws) leaves local data untouched and returns error', async 
   const r = await syncOnce(db, remote);
   expect(r).toMatchObject({ pulled: false, error: 'offline' });
   expect(await db.learners.count()).toBe(1);
+});
+
+it('a change the server refuses is set aside and the rest still sync', async () => {
+  const a = await recordCorrection(db, corr({ session: 'am' }));
+  const b = await recordCorrection(db, corr({ session: 'pm' }));
+  const c = await recordCorrection(db, corr({ session: 'am', status: 'excused', reason: 'sick' }));
+  remote.refuse.add(b.id);
+  const r = await syncOnce(db, remote);
+  expect(r).toMatchObject({ pushed: 2, pulled: true, rejected: 1 });
+  expect([...remote.rows.keys()]).toEqual([a.id, c.id]);
+  expect(await db.outbox.count()).toBe(0);
+  const set = await db.rejected.toArray();
+  expect(set).toHaveLength(1);
+  expect(set[0]).toMatchObject({ error: 'new row violates row-level security policy' });
 });

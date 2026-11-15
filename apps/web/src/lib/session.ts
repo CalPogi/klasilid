@@ -10,6 +10,14 @@ export interface AuthPort {
 }
 export const WRONG_LOGIN = 'Wrong email or password';
 
+/** Demo and real data never share a local database, so demo rows can't be pushed to a real account. */
+export const dbName = (mode: Mode) => (mode === 'demo' ? 'klasilid-demo' : 'klasilid');
+
+/** Children's records stay on a device only while their teacher uses it. */
+async function clearLocal(db: KlasilidDb) {
+  await Promise.all(db.tables.filter(t => t.name !== 'outbox').map(t => t.clear()));
+}
+
 /** Demo mode until a Supabase project is configured (both variables set). */
 export function modeFromEnv(env: { VITE_SUPABASE_URL?: string; VITE_SUPABASE_ANON_KEY?: string }): Mode {
   return env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY ? 'online' : 'demo';
@@ -27,14 +35,25 @@ export async function startSession(db: KlasilidDb, mode: Mode): Promise<Session 
 
 export async function signIn(db: KlasilidDb, auth: AuthPort, username: string, password: string): Promise<Session> {
   const user = await auth.signIn(username.trim(), password);
+  const owner = (await db.meta.get('owner'))?.value as string | undefined;
+  if (owner && owner !== user.userId) {
+    const waiting = await db.outbox.count();
+    if (waiting) {
+      await auth.signOut();
+      throw new Error(`${waiting} changes from the last teacher on this device haven't synced yet. Ask them to sign in once with internet first.`);
+    }
+    await clearLocal(db);
+  }
+  await db.meta.put({ key: 'owner', value: user.userId });
   await db.meta.put({ key: 'user', value: user });
   return { mode: 'online', ...user };
 }
 
-/** Local data and the outbox stay, so nothing unsynced is lost; it syncs at the next sign-in. */
+/** With nothing waiting, the device forgets the class; unsynced changes stay (and keep their owner) until they sync. */
 export async function signOut(db: KlasilidDb, auth: AuthPort): Promise<void> {
   await auth.signOut();
   await db.meta.delete('user');
+  if ((await db.outbox.count()) === 0) await clearLocal(db);
 }
 
 /**
@@ -51,7 +70,8 @@ export function supabaseAuth(sb: SupabaseClient): AuthPort {
       return { userId: data.user.id, displayName: p?.display_name ?? username };
     },
     async signOut() {
-      await sb.auth.signOut();
+      // 'local' clears the saved login on this device even with no internet; a global sign-out would fail offline and keep it.
+      await sb.auth.signOut({ scope: 'local' });
     },
   };
 }

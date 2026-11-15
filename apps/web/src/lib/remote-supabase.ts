@@ -4,6 +4,15 @@ import type { LTap } from './db';
 import { correctionFromRow, type Remote, type Snapshot } from './sync';
 
 type Row = Record<string, unknown>;
+
+/** The server looked at the change and refused it (permission, constraint, bad input). Retrying won't help. */
+export class RejectedError extends Error {}
+
+/** Postgres/PostgREST errors carry a code; a failed fetch (no internet) does not. 401/408/429 are worth retrying. */
+function toError(e: { message: string; code?: string; status?: number }): Error {
+  const retry = !e.code && (!e.status || [401, 408, 429].includes(e.status) || e.status >= 500);
+  return retry ? new Error(e.message) : new RejectedError(e.message);
+}
 /** Server and device clocks differ; re-fetch a margin and let merge-by-id drop the repeats. */
 const SKEW_MARGIN_MS = 10 * 60_000;
 
@@ -21,7 +30,7 @@ export function supabaseRemote(sb: SupabaseClient): Remote {
       const { error } = op.kind === 'insert'
         ? await sb.from(op.table).upsert(op.row, { onConflict: 'id', ignoreDuplicates: true })
         : await sb.rpc(op.fn, op.args);
-      if (error) throw new Error(error.message);
+      if (error) throw toError(error);
     },
 
     async pull(sinceIso): Promise<Snapshot> {
@@ -29,7 +38,8 @@ export function supabaseRemote(sb: SupabaseClient): Remote {
       const [classes, learners, enrollments, cards, windows, days, plans, taps, corrections] = await Promise.all([
         all('classes'), all('learners'), all('enrollments'), all('cards'), all('tap_windows'), all('calendar_days'), all('seat_plans'),
         all('taps', q => (since ? q.gt('received_at', since) : q)),
-        all('attendance_corrections', q => (since ? q.gt('created_at', since) : q)),
+        // created_at is the device's clock, so filtering on it can skip an offline correction; one class's corrections are few, fetch them all.
+        all('attendance_corrections'),
       ]);
       return {
         classes: classes.map(r => ({ id: r.id, schoolYearId: r.school_year_id, subject: r.subject, grade: r.grade, section: r.section,

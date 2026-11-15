@@ -15,6 +15,7 @@
   let className = $state('');
   let pending = $state(0);
   let noCard = $state(0);
+  let refused = $state(0);
   let online = $state(navigator.onLine);
   let editing: { row: LearnerDay; session: Session } | undefined = $state();
   let bellOpen = $state(false);
@@ -27,6 +28,7 @@
     const cls = await db.classes.get(classId);
     className = cls ? `Gr. ${cls.grade} ${cls.section}` : '';
     pending = await pendingCount(db);
+    refused = await db.rejected.count();
     const carded = new Set((await db.cards.toArray()).filter(c => c.active).map(c => c.learnerId));
     noCard = day.rows.filter(r => !carded.has(r.learner.id)).length;
   }
@@ -55,6 +57,7 @@
   const notifications = $derived(day ? [
     ...(day.suspectTaps.length ? [{ title: `Reader clock looked wrong for ${taps(day.suspectTaps.length)}`, sub: 'Check the times on the Attendance page', tone: 'bad' }] : []),
     ...(day.unknownTaps.length ? [{ title: `${taps(day.unknownTaps.length)} from an unregistered card`, sub: day.unknownTaps.map(t => `${t.cardUid} · ${fmtTime(t.at)}`).join(', '), tone: 'warn' }] : []),
+    ...(refused ? [{ title: `${refused} ${refused === 1 ? 'change' : 'changes'} the server refused`, sub: 'Kept on this device. Check the account or ask for help.', tone: 'bad' }] : []),
     ...(pending ? [{ title: `${pending} changes waiting to sync`, sub: online ? 'Sending now' : 'They send when the internet is back', tone: '' }] : []),
   ] : []);
 

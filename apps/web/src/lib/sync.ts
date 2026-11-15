@@ -1,3 +1,4 @@
+import { RejectedError } from './remote-supabase';
 import type {
   KlasilidDb, LCalendarDay, LCard, LClass, LCorrection, LEnrollment, LLearner, LSeatPlan, LTap, LTapWindow, OutboxOp,
 } from './db';
@@ -15,21 +16,25 @@ export interface Remote {
   pull(sinceIso: string | null): Promise<Snapshot>;
 }
 
-export interface SyncResult { pushed: number; pulled: boolean; error?: string }
+export interface SyncResult { pushed: number; pulled: boolean; rejected: number; error?: string }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Push the outbox in order, then pull. Never loses or duplicates a queued change (spec §9). */
 export async function syncOnce(db: KlasilidDb, remote: Remote, now = new Date()): Promise<SyncResult> {
   let pushed = 0;
+  let rejected = 0;
   for (const item of await db.outbox.orderBy('seq').toArray()) {
     try {
       await remote.push(item.op);
+      pushed++;
     } catch (e) {
-      return { pushed, pulled: false, error: message(e) }; // keep the rest; skip the pull so nothing local is overwritten
+      if (!(e instanceof RejectedError)) return { pushed, pulled: false, rejected, error: message(e) }; // offline: keep the rest, skip the pull
+      // Refused for good: set it aside (never lost, shown to the teacher) so it can't block every later change.
+      await db.rejected.add({ op: item.op, createdAt: item.createdAt, error: e.message, at: now.toISOString() });
+      rejected++;
     }
     await db.outbox.delete(item.seq!);
-    pushed++;
   }
 
   const startedAt = now.toISOString();
@@ -38,7 +43,7 @@ export async function syncOnce(db: KlasilidDb, remote: Remote, now = new Date())
   try {
     snap = await remote.pull(since);
   } catch (e) {
-    return { pushed, pulled: false, error: message(e) };
+    return { pushed, pulled: false, rejected, error: message(e) };
   }
 
   const small = [db.classes, db.learners, db.enrollments, db.cards, db.tapWindows, db.calendarDays, db.seatPlans];
@@ -58,7 +63,7 @@ export async function syncOnce(db: KlasilidDb, remote: Remote, now = new Date())
     await db.corrections.bulkPut(snap.corrections);
     await db.meta.put({ key: 'lastPull', value: startedAt });
   });
-  return { pushed, pulled: true };
+  return { pushed, pulled: true, rejected };
 }
 
 /** Server row (snake_case) → local correction. Shared by the Supabase remote and tests. */
