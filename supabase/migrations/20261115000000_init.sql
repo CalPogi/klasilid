@@ -10,7 +10,8 @@ create table school_years (
   school_id uuid not null references schools(id),
   label text not null,
   starts_on date not null,
-  ends_on date not null
+  ends_on date not null,
+  admin_id uuid                              -- the teacher who manages this year's calendar
 );
 
 create table profiles (
@@ -19,6 +20,8 @@ create table profiles (
   display_name text not null,
   language text not null default 'en' check (language in ('en', 'fil'))
 );
+
+alter table school_years add foreign key (admin_id) references profiles(id);
 
 create table classes (
   id uuid primary key default gen_random_uuid(),
@@ -71,7 +74,7 @@ create table login_codes (
 );
 
 create table cards (
-  uid text primary key check (uid ~ '^[0-9A-F]{8}([0-9A-F]{6})?$'),
+  uid text primary key check (uid ~ '^[0-9A-F]{8}([0-9A-F]{6}([0-9A-F]{6})?)?$'),  -- 4, 7 or 10-byte UIDs
   learner_id uuid not null references learners(id),
   active boolean not null default true,
   issued_at timestamptz not null default now(),

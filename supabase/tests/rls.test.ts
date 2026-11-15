@@ -5,7 +5,7 @@ import { as, freshDb, one } from './db';
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const T = id(1), T2 = id(2), PA = id(3), PB = id(4), SA = id(5), O = id(6);
 let db: PGlite;
-let C: string, C2: string, A: string, B: string;
+let C: string, C2: string, A: string, B: string, SY: string;
 
 const rows = async (sql: string, params: unknown[] = []) => (await db.query<Record<string, unknown>>(sql, params)).rows;
 const learnerNames = async () => (await rows(`select first_name from learners order by first_name`)).map(r => r.first_name);
@@ -31,6 +31,8 @@ beforeEach(async () => {
   await db.query(`insert into attendance_corrections(learner_id, class_id, date, session, status, reason, created_by) values ($1, $3, '2026-11-13', 'am', 'absent', 'sick', $4), ($2, $3, '2026-11-13', 'am', 'absent', 'sick', $4)`, [A, B, C, T]);
   await db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'am', 'in', 390, 435, 480, '2026-06-01')`, [C]);
   await db.query(`insert into calendar_days(school_year_id, date, type, name) values ($1, '2026-11-30', 'holiday', 'Bonifacio Day')`, [sy]);
+  await db.query(`update school_years set admin_id = $1`, [T]);
+  SY = sy as string;
 });
 
 describe('teacher', () => {
@@ -72,6 +74,59 @@ describe('teacher', () => {
   it('cannot insert taps directly', async () => {
     await as(db, T, async () => {
       await expect(db.query(`insert into taps(id, device_id, card_uid, tapped_at) values ('KD-0001-9', 'KD-0001', '0A0A0A0A', now())`)).rejects.toThrow();
+    });
+  });
+});
+
+describe('review fixes', () => {
+  it("a teacher cannot enroll another teacher's learner", async () => {
+    await as(db, T2, async () => {
+      await expect(db.query(`insert into enrollments(class_id, learner_id) values ($1, $2)`, [C2, A])).rejects.toThrow();
+    });
+  });
+  it("a teacher cannot change a learner's account link", async () => {
+    await as(db, T, async () => {
+      await expect(db.query(`update learners set user_id = null where id = $1`, [A])).rejects.toThrow(/permission denied/);
+    });
+  });
+  it('helper functions are not in the API schema and not callable by anon', async () => {
+    await as(db, null, async () => {
+      await expect(db.query(`select public.learner_of_card('0A0A0A0A')`)).rejects.toThrow();
+    });
+    await as(db, null, async () => {
+      await expect(db.query(`select private.is_family($1)`, [A])).rejects.toThrow(/permission denied/);
+    });
+  });
+  it('a card cannot be reassigned or deleted, only deactivated', async () => {
+    await as(db, T, async () => {
+      await expect(db.query(`update cards set learner_id = $1 where uid = '0A0A0A0A'`, [B])).rejects.toThrow(/permission denied/);
+    });
+    await as(db, T, async () => {
+      await expect(db.query(`delete from cards where uid = '0A0A0A0A'`)).rejects.toThrow(/permission denied/);
+    });
+    await as(db, T, async () => {
+      await db.query(`update cards set active = false, replaced_at = now() where uid = '0A0A0A0A'`);
+    });
+  });
+  it('past tap windows cannot be added, changed or removed', async () => {
+    await as(db, T, async () => {
+      await expect(db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'am', 'in', 400, 440, 480, '2026-01-01')`, [C])).rejects.toThrow();
+    });
+    await as(db, T, async () => {
+      await db.query(`update tap_windows set opens = 300`);
+      await db.query(`delete from tap_windows`);
+      expect(await rows(`select opens from tap_windows`)).toEqual([{ opens: 390 }]);
+    });
+    await as(db, T, async () => {
+      await db.query(`insert into tap_windows(class_id, session, kind, opens, late_after, closes, effective_from) values ($1, 'am', 'in', 400, 440, 480, '2099-01-01')`, [C]);
+    });
+  });
+  it('only the school year admin edits the calendar', async () => {
+    await as(db, T2, async () => {
+      await expect(db.query(`insert into calendar_days(school_year_id, date, type, name) values ($1, '2026-12-01', 'suspension', 'Typhoon')`, [SY])).rejects.toThrow();
+    });
+    await as(db, T, async () => {
+      await db.query(`insert into calendar_days(school_year_id, date, type, name) values ($1, '2026-12-01', 'suspension', 'Typhoon')`, [SY]);
     });
   });
 });

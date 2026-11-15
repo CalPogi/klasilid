@@ -280,7 +280,7 @@ Every tap has a unique ID. It can reach the server by two paths: the reader uplo
   - Read the UID and stamp it with RTC time.
   - Append it to a flash log (LittleFS). The log must hold at least 30 school days of taps for 50 learners.
   - Give feedback on the OLED and buzzer within half a second: time, plus "Recorded". Name and status show when the reader has a roster cached.
-- **Tap ID:** `deviceId-sequence`. The sequence number survives reboots.
+- **Tap ID:** `deviceId-sequence-tappedAtMillis` (set by the server). The sequence number survives reboots; the time in the ID means a wiped reader that restarts its sequence never collides with old taps, while a retry of the same tap still deduplicates.
 - **Clock:** the DS3231 is the time source. It resyncs from NTP whenever the reader has internet, and the app can also set it while paired. Each tap stores its clock source and last-sync time, so bad clock data can be spotted.
 - **Network modes (decided: Wi-Fi, not Bluetooth):**
   1. joins the school Wi-Fi;
@@ -291,7 +291,7 @@ Every tap has a unique ID. It can reach the server by two paths: the reader uplo
   - receive the cached roster and today's windows;
   - register mode.
   - Every call needs a pairing token set during setup.
-- **Upload:** when online, the reader posts unsent taps to the `tap` server function with its device key and marks them sent on acknowledgement. Retries back off.
+- **Upload:** when online, the reader posts unsent taps to the `tap` server function with its device key and marks them sent when they come back in `acked`. Taps in `rejected` (unreadable card UID) are dropped. A tap with an unreadable or time-zone-less time is still stored, using the server's time, and flagged. Retries back off.
 - **Setup:** first boot opens the hotspot with a small setup page for Wi-Fi details and pairing. The setup wizard walks the teacher through it.
 - Over-the-air firmware update: builder's call, recommended.
 
