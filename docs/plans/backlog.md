@@ -3,6 +3,8 @@
 Pick these up in the plan named.
 
 ## Plan 2 (teacher app)
+Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items below. The rest go to plan 2b.
+
 - Show `clock_suspect` taps to the teacher. `computeDay` does not see the flag; add it to `Tap` or show suspect taps on the review list.
 - A learner with no in-tap but a tap in the out window shows as absent and the tap is hidden. Send that tap to the review list (`packages/core/src/status.ts`).
 - Insert a learner and their enrollment in one server function (RLS only shows a learner once they are enrolled).
