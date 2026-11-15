@@ -4,8 +4,8 @@ import type { Correction, IsoDate, Tap, TapWindow } from '@klasilid/core';
 // Local rows are camelCase versions of the server tables (supabase/migrations). Ids are client-generated UUIDs.
 export interface LClass { id: string; schoolYearId: string; subject: string; grade: number; section: string; isAdvisory: boolean; ignoreRepeatMinutes: 1 | 3 | 5 | 10; reviewOutside?: boolean }
 export interface LLearner { id: string; lastName: string; firstName: string; middleName?: string; sex: 'M' | 'F'; lrn?: string; guardianName?: string; guardianPhone?: string }
-export interface LEnrollment { id: string; classId: string; learnerId: string; joinedOn: IsoDate; leftOn?: IsoDate }
-export interface LCard { uid: string; learnerId: string; active: boolean }
+export interface LEnrollment { id: string; classId: string; learnerId: string; joinedOn: IsoDate; leftOn?: IsoDate; leaveReason?: string; joinedFrom?: string }
+export interface LCard { uid: string; learnerId: string; active: boolean; issuedAt?: string; replacedAt?: string }
 export interface LTapWindow extends TapWindow { id: string; classId: string }
 export interface LTap extends Tap { deviceId: string; clockSuspect: boolean }
 export interface LCorrection extends Correction { learnerId: string; classId: string; date: IsoDate; createdBy: string }

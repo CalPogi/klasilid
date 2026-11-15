@@ -36,3 +36,7 @@ create policy excuse_letters_insert on storage.objects for insert to authenticat
   with check (bucket_id = 'excuse-letters' and private.is_class_teacher(((storage.foldername(name))[1])::uuid));
 create policy excuse_letters_select on storage.objects for select to authenticated
   using (bucket_id = 'excuse-letters' and private.is_class_teacher(((storage.foldername(name))[1])::uuid));
+
+-- Where a learner transferred in from (Add student form).
+alter table enrollments add column joined_from text;
+grant update (joined_from) on enrollments to authenticated;

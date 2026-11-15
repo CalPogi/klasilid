@@ -81,3 +81,10 @@ describe('excuse letters', () => {
     expect((await db.query(`select name from storage.objects`)).rows).toEqual([{ name: `${C}/c1.jpg` }]);
   });
 });
+
+it('a teacher can record where a learner transferred in from', async () => {
+  await as(db, T, async () => {
+    await db.query(`update enrollments set joined_from = 'Ilagan West CS' where learner_id = $1`, [L]);
+    expect(await one(db, `select joined_from from enrollments where learner_id = $1`, [L])).toEqual({ joined_from: 'Ilagan West CS' });
+  });
+});

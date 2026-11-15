@@ -8,6 +8,7 @@
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
   import SeatPlan from './pages/SeatPlan.svelte';
+  import Students from './pages/Students.svelte';
   import Setup from './pages/Setup.svelte';
   import SignIn from './pages/SignIn.svelte';
   import Soon from './pages/Soon.svelte';
@@ -91,6 +92,8 @@
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
+    {:else if $route === 'students'}
+      <Students {db} {classId} teacherId={session.userId} {now} {mode} />
     {:else if $route === 'seat'}
       <SeatPlan {db} {classId} teacherId={session.userId} {now} />
     {:else if $route === 'attendance'}
