@@ -5,6 +5,9 @@
 #include "roster.h"
 #include "taplog.h"
 #include "timefmt.h"
+#include "upload.h"
+#include <stdio.h>
+#include <string.h>
 
 void setUp() {}
 void tearDown() {}
@@ -139,6 +142,66 @@ void test_full_when_every_slot_is_unsent_and_sent_slots_are_reused() {  // Revie
   TEST_ASSERT_EQUAL(4, log.unsentCount());
 }
 
+// ---- Task 4: upload body and ack ----
+static TapRec rec(uint32_t seq, const char* uid, uint32_t unix, uint32_t synced) {
+  TapRec r;
+  memset(&r, 0, sizeof r);
+  r.seq = seq;
+  r.unix = unix;
+  r.syncedUnix = synced;
+  strncpy(r.uid, uid, sizeof r.uid - 1);
+  return r;
+}
+
+void test_body_matches_contract() {
+  TapRec r[] = {rec(41, "04A1B2C3", 1794525002, 1794517200)};
+  char out[512];
+  size_t n = buildBody("KD-0001", r, 1, out, sizeof out);
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"deviceId\":\"KD-0001\",\"taps\":[{\"seq\":41,\"cardUid\":\"04A1B2C3\",\"tappedAt\":\"2026-11-12T23:10:02Z\",\"clockSyncedAt\":\"2026-11-12T21:00:00Z\"}]}",
+      out);
+  TEST_ASSERT_EQUAL(strlen(out), n);
+  TEST_ASSERT_EQUAL(0, buildBody("KD-0001", r, 1, out, 20));  // doesn't fit → 0
+}
+
+void test_never_synced_clock_sends_null() {  // Review Focus 5: RTC lost power, year 2000
+  TapRec r[] = {rec(1, "04A1B2C3", 946684805, 0)};
+  char out[512];
+  buildBody("KD-0001", r, 1, out, sizeof out);
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"tappedAt\":\"2000-01-01T00:00:05Z\",\"clockSyncedAt\":null"));
+}
+
+void test_parse_ack_unions_acked_and_rejected() {
+  uint32_t seqs[8];
+  TEST_ASSERT_EQUAL(3, parseAck("{\"acked\":[1,2],\"rejected\":[3]}", seqs, 8));
+  TEST_ASSERT_EQUAL_UINT32(1, seqs[0]);
+  TEST_ASSERT_EQUAL_UINT32(2, seqs[1]);
+  TEST_ASSERT_EQUAL_UINT32(3, seqs[2]);
+  TEST_ASSERT_EQUAL(2, parseAck("{\"acked\":[1,2],\"rejected\":[3]}", seqs, 2));  // respects max
+}
+
+void test_parse_ack_bad_json_returns_zero() {
+  uint32_t seqs[8];
+  TEST_ASSERT_EQUAL(0, parseAck("{\"acked\":[1,", seqs, 8));
+  TEST_ASSERT_EQUAL(0, parseAck("<html>502 Bad Gateway</html>", seqs, 8));
+}
+
+void test_partial_ack_leaves_the_rest_queued() {  // Review Focus 3
+  MemoryStorage s(16);
+  TapLog log(s, 16);
+  log.begin();
+  uint32_t a = addTap(log, "04A1B2C3");
+  addTap(log, "04B2C3D4");
+  addTap(log, "04C3D4E5");
+  char ack[64];
+  snprintf(ack, sizeof ack, "{\"acked\":[%lu],\"rejected\":[]}", static_cast<unsigned long>(a));
+  uint32_t seqs[8];
+  log.markSent(seqs, parseAck(ack, seqs, 8));
+  TEST_ASSERT_EQUAL(2, log.unsentCount());
+  log.markSent(seqs, parseAck(ack, seqs, 8));  // the same ack again
+  TEST_ASSERT_EQUAL(2, log.unsentCount());
+}
+
 void setup() {
   delay(2000);  // let the serial monitor attach
   UNITY_BEGIN();
@@ -153,6 +216,11 @@ void setup() {
   RUN_TEST(test_torn_last_write_is_ignored_and_seq_not_reused);
   RUN_TEST(test_lost_meta_write_never_reuses_seq);
   RUN_TEST(test_full_when_every_slot_is_unsent_and_sent_slots_are_reused);
+  RUN_TEST(test_body_matches_contract);
+  RUN_TEST(test_never_synced_clock_sends_null);
+  RUN_TEST(test_parse_ack_unions_acked_and_rejected);
+  RUN_TEST(test_parse_ack_bad_json_returns_zero);
+  RUN_TEST(test_partial_ack_leaves_the_rest_queued);
   UNITY_END();
 }
 
