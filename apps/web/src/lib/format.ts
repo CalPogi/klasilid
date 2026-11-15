@@ -21,3 +21,14 @@ export function fmtLongDay(date: string): string {
 export const STATUS_LABEL: Record<HalfDayStatus, string> = {
   on_time: 'Present', late: 'Late', absent: 'Absent', excused: 'Excused', pending: 'Not yet', no_school: 'No school',
 };
+
+/** Minutes after Manila midnight → '7:15 AM'. */
+export function fmtMinutes(m: number): string {
+  const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0');
+  return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** '2026-11' → 'November 2026'. */
+export function fmtMonth(month: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(month + '-01T00:00:00Z'));
+}

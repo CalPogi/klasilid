@@ -1,4 +1,4 @@
-import { computeDay, manilaDate, windowsForDate, type DayType, type HalfDay, type IsoDate, type ReviewItem } from '@klasilid/core';
+import { computeDay, manilaDate, windowsForDate, type DayType, type HalfDay, type IsoDate, type ReviewItem, type TapWindow } from '@klasilid/core';
 import type { KlasilidDb, LLearner, LTap } from './db';
 
 export interface LearnerDay { learner: LLearner; am: HalfDay; pm: HalfDay; review: ReviewItem[]; /** this learner's taps that day */ taps: LTap[] }
@@ -8,6 +8,8 @@ export interface ClassDay {
   /** No in-window is in effect for this date: show "Set up tap times", never mark anyone absent. */
   needsSetup: boolean;
   rows: LearnerDay[];
+  /** Tap windows in effect that day. */
+  windows: TapWindow[];
   /** From the morning half: in = on time + late, notYet = pending. */
   counts: { in: number; late: number; absent: number; notYet: number; total: number };
   /** Taps whose card is not an active card of an enrolled learner. */
@@ -57,7 +59,7 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
   const am = rows.map(r => r.am.status);
   const count = (s: string) => am.filter(x => x === s).length;
   return {
-    date, dayType, needsSetup, rows,
+    date, dayType, needsSetup, rows, windows,
     counts: { in: count('on_time') + count('late'), late: count('late'), absent: count('absent'), notYet: count('pending'), total: rows.length },
     unknownTaps: taps.filter(t => !ownerOf.has(t.cardUid)),
     suspectTaps: taps.filter(t => t.clockSuspect && ownerOf.has(t.cardUid)),
@@ -70,4 +72,33 @@ export function needsAttention(day: ClassDay): LearnerDay[] {
   const afterClosing = day.rows.filter(r => r.am.flags.includes('after_closing') || r.pm.flags.includes('after_closing'));
   const absent = day.rows.filter(r => r.am.status === 'absent');
   return [...new Set([...review, ...afterClosing, ...absent])];
+}
+
+/** School days (weekdays that are not a holiday or suspension) in `month` ('YYYY-MM') up to `today`, newest first. */
+export async function schoolDaysInMonth(db: KlasilidDb, classId: string, month: string, today: IsoDate): Promise<IsoDate[]> {
+  const cls = await db.classes.get(classId);
+  const off = new Set((await db.calendarDays.toArray())
+    .filter(d => (!cls || d.schoolYearId === cls.schoolYearId) && (d.type === 'holiday' || d.type === 'suspension'))
+    .map(d => d.date));
+  const out: IsoDate[] = [];
+  const d = new Date(month + '-01T00:00:00Z');
+  while (d.toISOString().slice(0, 7) === month) {
+    const iso = d.toISOString().slice(0, 10);
+    const wd = d.getUTCDay();
+    if (iso <= today && wd !== 0 && wd !== 6 && !off.has(iso)) out.unshift(iso);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/** Months from the class's first enrollment to `today`, newest first, as 'YYYY-MM'. */
+export async function monthsWithAttendance(db: KlasilidDb, classId: string, today: IsoDate): Promise<string[]> {
+  const joined = (await db.enrollments.where('classId').equals(classId).toArray()).map(e => e.joinedOn).sort()[0] ?? today;
+  const out: string[] = [];
+  const d = new Date(joined.slice(0, 7) + '-01T00:00:00Z');
+  while (d.toISOString().slice(0, 7) <= today.slice(0, 7)) {
+    out.unshift(d.toISOString().slice(0, 7));
+    d.setUTCMonth(d.getUTCMonth() + 1);
+  }
+  return out;
 }
