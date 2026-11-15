@@ -47,6 +47,19 @@
   }
   $effect(() => { filter; query; page = 1; load(); });
   const todayOf = (id: string) => day?.rows.find(r => r.learner.id === id);
+  /** Today's excuse-letter photo kept on this device, if a correction has one. */
+  let letter = $state('');
+  $effect(() => {
+    const r = open && todayOf(open.learner.id);
+    const ids = r ? [r.am.correctionId, r.pm.correctionId].filter((x): x is string => !!x) : [];
+    letter = '';
+    (async () => {
+      for (const id of ids) {
+        const p = await db.photos.get(id);
+        if (p && typeof URL.createObjectURL === 'function') { letter = URL.createObjectURL(p.blob); return; }
+      }
+    })();
+  });
 </script>
 
 <div class="page on" data-page="students">
@@ -93,7 +106,7 @@
 </div>
 
 {#if open}
-  <StudentDrawer row={open} today={todayOf(open.learner.id)} {className} {now} onclose={() => (open = undefined)}
+  <StudentDrawer row={open} today={todayOf(open.learner.id)} {className} {now} {letter} onclose={() => (open = undefined)}
     oncorrect={(r, s) => (correcting = { row: r, session: s })} ontransfer={() => (moving = open)}
     oncard={async a => { const l = open!.learner; if (a === 'replace') await replaceCard(db, l.id, now()); await load(); onregister?.({ learner: l }); }} />
 {/if}

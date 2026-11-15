@@ -8,7 +8,7 @@ export interface LEnrollment { id: string; classId: string; learnerId: string; j
 export interface LCard { uid: string; learnerId: string; active: boolean; issuedAt?: string; replacedAt?: string }
 export interface LTapWindow extends TapWindow { id: string; classId: string }
 export interface LTap extends Tap { deviceId: string; clockSuspect: boolean }
-export interface LCorrection extends Correction { learnerId: string; classId: string; date: IsoDate; createdBy: string }
+export interface LCorrection extends Correction { learnerId: string; classId: string; date: IsoDate; createdBy: string; photoPath?: string }
 export interface LCalendarDay { id: string; schoolYearId: string; date: IsoDate; type: 'holiday' | 'half' | 'suspension' | 'event'; name: string }
 export interface LSeatPlan { id: string; classId: string; rows: number; cols: number; effectiveFrom: IsoDate; createdAt?: string }
 export interface LSeat { id: string; planId: string; row: number; col: number; learnerId: string }
@@ -74,12 +74,17 @@ export function openDb(name = 'klasilid'): KlasilidDb {
   return new KlasilidDb(name);
 }
 
-/** Saves a correction locally and queues it for the server, in one transaction (spec §7.1). */
-export async function recordCorrection(db: KlasilidDb, c: Omit<LCorrection, 'id' | 'at'>, now = new Date()): Promise<LCorrection> {
+/**
+ * Saves a correction locally and queues it for the server, in one transaction (spec §7.1).
+ * With an excuse-letter photo, the path is set on the row now (corrections can't be edited later) and the upload is queued right after.
+ */
+export async function recordCorrection(db: KlasilidDb, c: Omit<LCorrection, 'id' | 'at' | 'photoPath'>, now = new Date(), photo?: Blob): Promise<LCorrection> {
   if (!c.reason) throw new Error('A reason is required');
   if (c.reason === 'other' && !c.reasonText?.trim()) throw new Error('Describe the reason');
-  const row: LCorrection = { ...c, id: crypto.randomUUID(), at: now.toISOString() };
-  await db.transaction('rw', db.corrections, db.outbox, async () => {
+  const id = crypto.randomUUID();
+  const photoPath = photo ? `${c.classId}/${id}.jpg` : undefined;
+  const row: LCorrection = { ...c, id, at: now.toISOString(), ...(photoPath ? { photoPath } : {}) };
+  await db.transaction('rw', db.corrections, db.outbox, db.photos, async () => {
     await db.corrections.add(row);
     await db.outbox.add({
       createdAt: row.at,
@@ -90,9 +95,14 @@ export async function recordCorrection(db: KlasilidDb, c: Omit<LCorrection, 'id'
           id: row.id, learner_id: row.learnerId, class_id: row.classId, date: row.date, session: row.session,
           status: row.status, reason: row.reason, reason_text: row.reasonText ?? null, created_by: row.createdBy,
           created_at: row.at, // device time: the newest correction wins by when it was made, not when it synced
+          photo_path: photoPath ?? null,
         },
       },
     });
+    if (photo && photoPath) {
+      await db.photos.put({ correctionId: id, blob: photo, name: photoPath });
+      await db.outbox.add({ createdAt: row.at, op: { kind: 'upload', bucket: 'excuse-letters', path: photoPath, correctionId: id } });
+    }
   });
   return row;
 }

@@ -75,3 +75,15 @@ it('demo names are invented: every name comes from demo.ts\'s own lists', async 
     expect(LAST).toContain(l.lastName);
   }
 });
+
+it('a correction with a photo queues the insert (with photo_path) then the upload, and keeps the photo on the device', async () => {
+  const db = fresh();
+  const photo = new Blob(['jpg-bytes'], { type: 'image/jpeg' });
+  const c = await recordCorrection(db, base, new Date('2026-11-13T01:00:00Z'), photo);
+  const ops = (await db.outbox.orderBy('seq').toArray()).map(i => i.op);
+  expect(ops).toHaveLength(2);
+  expect(ops[0]).toMatchObject({ kind: 'insert', table: 'attendance_corrections', row: { id: c.id, photo_path: `c1/${c.id}.jpg` } });
+  expect(ops[1]).toEqual({ kind: 'upload', bucket: 'excuse-letters', path: `c1/${c.id}.jpg`, correctionId: c.id });
+  expect(await db.photos.get(c.id)).toMatchObject({ correctionId: c.id, name: `c1/${c.id}.jpg` }); // fake-indexeddb can't clone Blob contents under jsdom
+  expect(c.photoPath).toBe(`c1/${c.id}.jpg`);
+});

@@ -95,3 +95,15 @@ it('the teacher can switch to the afternoon half before saving', async () => {
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
   expect(await db.corrections.toArray()).toMatchObject([{ session: 'pm', status: 'excused' }]);
 });
+
+it('the modal shows a thumbnail after choosing a photo, and saving queues its upload', async () => {
+  URL.createObjectURL = () => 'blob:preview';
+  const { db, onsaved } = open();
+  const file = new File(['jpg'], 'letter.jpg', { type: 'image/jpeg' });
+  await fireEvent.change(screen.getByLabelText('Excuse letter photo (optional)'), { target: { files: [file] } });
+  expect((screen.getByAltText('Excuse letter preview') as HTMLImageElement).src).toBe('blob:preview');
+  await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'sick' } });
+  await fireEvent.click(save());
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect((await db.outbox.toArray()).map(i => i.op.kind)).toEqual(['insert', 'upload']);
+});

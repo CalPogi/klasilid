@@ -29,6 +29,7 @@
   let reason: CorrectionReason | '' = $state('');
   let reasonText = $state('');
   let photo: File | undefined = $state();
+  const preview = $derived(photo && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(photo) : '');
   let saving = $state(false);
   let error = $state('');
   const ok = $derived(!!reason && (reason !== 'other' || !!reasonText.trim()) && !saving);
@@ -40,8 +41,7 @@
       const c = await recordCorrection(db, {
         learnerId: day.learner.id, classId, date, session: which, status, reason, createdBy: teacherId,
         ...(reason === 'other' ? { reasonText: reasonText.trim() } : {}),
-      });
-      if (photo) await db.photos.put({ correctionId: c.id, blob: photo, name: photo.name });
+      }, new Date(), photo);
       onsaved(c);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -78,6 +78,7 @@
   <div class="field">
     <label for="{id}-p">Excuse letter photo (optional)</label>
     <input id="{id}-p" type="file" accept="image/*" onchange={e => (photo = e.currentTarget.files?.[0])} style="padding-top:12px" />
+    {#if preview}<img src={preview} alt="Excuse letter preview" style="margin-top:8px;max-height:120px;border-radius:12px;border:1px solid var(--line)" />{/if}
   </div>
   <div class="actions">
     <button class="btn ghost" type="button" onclick={onclose}>Cancel</button>

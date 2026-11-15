@@ -73,5 +73,6 @@ export function correctionFromRow(r: Record<string, unknown>): LCorrection {
     id: r.id as string, learnerId: r.learner_id as string, classId: r.class_id as string, date: r.date as string,
     session: r.session as LCorrection['session'], status: r.status as LCorrection['status'], reason: r.reason as LCorrection['reason'],
     reasonText: (r.reason_text as string | null) ?? undefined, createdBy: r.created_by as string, at: new Date(r.created_at as string).toISOString(),
+    photoPath: (r.photo_path as string | null) ?? undefined,
   };
 }

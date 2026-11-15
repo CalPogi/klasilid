@@ -6,8 +6,8 @@
   import Icon from './Icon.svelte';
 
   // Markup follows the mockup's student drawer (.drawer).
-  let { row, today, className, now, onclose, oncorrect, ontransfer, oncard }: {
-    row: StudentRow; today: LearnerDay | undefined; className: string; now: () => Date;
+  let { row, today, className, now, letter, onclose, oncorrect, ontransfer, oncard }: {
+    row: StudentRow; today: LearnerDay | undefined; className: string; now: () => Date; letter?: string;
     onclose: () => void; oncorrect: (r: LearnerDay, s: Session) => void; ontransfer: () => void; oncard: (action: 'register' | 'replace') => void;
   } = $props();
 
@@ -30,6 +30,7 @@
   <h4>Today</h4>
   <div class="rows" style="padding:0 16px"><div class="mrow">
     <div class="txt"><b>{today ? `${STATUS_LABEL[today[session].status]}${tap ? ' · ' + fmtTime(tap.at) : ''}` : 'No class today'}</b><span>{tap ? 'Door reader' : today?.[session].correctionId ? 'Corrected by you' : 'No tap yet'}</span></div>
+    {#if letter}<a class="mini-btn" href={letter} target="_blank" rel="noopener">Letter</a>{/if}
     {#if today && row.status !== 'left'}<button class="mini-btn" type="button" onclick={() => oncorrect(today!, session)}>Correct</button>{/if}
   </div></div>
   <h4>Card and accounts</h4>
