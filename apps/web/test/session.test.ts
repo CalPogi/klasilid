@@ -83,8 +83,8 @@ describe('session', () => {
   it('signIn caches the user; signOut clears it but keeps outbox items', async () => {
     const db = fresh();
     const auth = fakeAuth();
-    expect(await signIn(db, auth, 'teacher@example.com', 'right')).toEqual({ mode: 'online', userId: 'u-1', displayName: "Ma'am Test" });
-    expect((await db.meta.get('user'))?.value).toEqual({ userId: 'u-1', displayName: "Ma'am Test" });
+    expect(await signIn(db, auth, 'teacher@example.com', 'right')).toEqual({ mode: 'online', userId: 'u-1', displayName: "Ma'am Test", username: 'teacher@example.com' });
+    expect((await db.meta.get('user'))?.value).toEqual({ userId: 'u-1', displayName: "Ma'am Test", username: 'teacher@example.com' });
     await recordCorrection(db, { learnerId: 'l', classId: 'c', date: '2026-11-13', session: 'am', status: 'absent', reason: 'sick', createdBy: 'u-1' });
     await signOut(db, auth);
     expect(await db.meta.get('user')).toBeUndefined();
@@ -108,5 +108,5 @@ it('a right password signs in', async () => {
   await fireEvent.input(screen.getByLabelText('Username'), { target: { value: 'lou.test' } });
   await fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'right' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  await vi.waitFor(() => expect(onsignedin).toHaveBeenCalledWith({ mode: 'online', userId: 'u-1', displayName: "Ma'am Test" }));
+  await vi.waitFor(() => expect(onsignedin).toHaveBeenCalledWith({ mode: 'online', userId: 'u-1', displayName: "Ma'am Test", username: 'lou.test' }));
 });

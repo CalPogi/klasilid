@@ -11,6 +11,8 @@
   import Students from './pages/Students.svelte';
   import Calendar from './pages/Calendar.svelte';
   import Settings from './pages/Settings.svelte';
+  import Account from './pages/Account.svelte';
+  import { DEFAULT_SCHOOL } from './lib/setup';
   import { applyTheme, savedTheme } from './lib/settings';
   import RegisterCardModal from './components/RegisterCardModal.svelte';
   import type { LLearner } from './lib/db';
@@ -112,6 +114,8 @@
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
+    {:else if $route === 'account'}
+      <Account {db} {auth} {session} school={DEFAULT_SCHOOL} onrenamed={name => { if (session) session = { ...session, displayName: name }; }} />
     {:else if $route === 'settings'}
       <Settings {db} {classId} userId={session.userId} {now} onregister={() => register({ bulk: true })} />
     {:else if $route === 'calendar'}

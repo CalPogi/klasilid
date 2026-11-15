@@ -3,11 +3,11 @@ import { readable } from 'svelte/store';
 /** Built pages, plus the mockup's other pages, which show "coming in the next update" until their plan lands. */
 export const SOON = {
   grades: 'Report card grades', manage: 'Manage classes', reports: 'Reports',
-  reader: 'Door reader', account: 'Account',
+  reader: 'Door reader',
 } as const;
 export type SoonRoute = keyof typeof SOON;
-export type Route = 'today' | 'attendance' | 'seat' | 'students' | 'calendar' | 'settings' | 'setup' | 'signin' | SoonRoute;
-const ROUTES = ['today', 'attendance', 'seat', 'students', 'calendar', 'settings', 'setup', 'signin', ...Object.keys(SOON)] as Route[];
+export type Route = 'today' | 'attendance' | 'seat' | 'students' | 'calendar' | 'settings' | 'account' | 'setup' | 'signin' | SoonRoute;
+const ROUTES = ['today', 'attendance', 'seat', 'students', 'calendar', 'settings', 'account', 'setup', 'signin', ...Object.keys(SOON)] as Route[];
 
 const parse = (): Route => {
   const r = location.hash.replace(/^#\//, '') as Route;

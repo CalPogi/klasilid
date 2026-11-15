@@ -3,10 +3,13 @@ import type { KlasilidDb } from './db';
 import { DEMO_TEACHER_ID, seedDemo } from './demo';
 
 export type Mode = 'demo' | 'online';
-export interface Session { mode: Mode; userId: string; displayName: string }
+export interface Session { mode: Mode; userId: string; displayName: string; username?: string }
 export interface AuthPort {
   signIn(username: string, password: string): Promise<{ userId: string; displayName: string }>;
   signOut(): Promise<void>;
+  /** Re-checks the current password first. */
+  changePassword?(current: string, next: string): Promise<void>;
+  setEmail?(email: string): Promise<void>;
 }
 export const WRONG_LOGIN = 'Wrong email or password';
 
@@ -44,9 +47,10 @@ export async function signIn(db: KlasilidDb, auth: AuthPort, username: string, p
     }
     await clearLocal(db);
   }
+  const cached = { ...user, username: username.trim() };
   await db.meta.put({ key: 'owner', value: user.userId });
-  await db.meta.put({ key: 'user', value: user });
-  return { mode: 'online', ...user };
+  await db.meta.put({ key: 'user', value: cached });
+  return { mode: 'online', ...cached };
 }
 
 /** With nothing waiting, the device forgets the class; unsynced changes stay (and keep their owner) until they sync. */
@@ -54,6 +58,15 @@ export async function signOut(db: KlasilidDb, auth: AuthPort): Promise<void> {
   await auth.signOut();
   await db.meta.delete('user');
   if ((await db.outbox.count()) === 0) await clearLocal(db);
+}
+
+/** Updates the cached sign-in and queues the profile change. */
+export async function saveDisplayName(db: KlasilidDb, userId: string, name: string): Promise<void> {
+  const user = (await db.meta.get('user'))?.value as Record<string, unknown> | undefined;
+  await db.transaction('rw', db.meta, db.outbox, async () => {
+    if (user) await db.meta.put({ key: 'user', value: { ...user, displayName: name } });
+    await db.outbox.add({ createdAt: new Date().toISOString(), op: { kind: 'update', table: 'profiles', match: { id: userId }, values: { display_name: name } } });
+  });
 }
 
 /**
@@ -68,6 +81,19 @@ export function supabaseAuth(sb: SupabaseClient): AuthPort {
       if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : "Can't reach Klasilid right now. Check the internet and try again.");
       const { data: p } = await sb.from('profiles').select('display_name').eq('id', data.user.id).maybeSingle();
       return { userId: data.user.id, displayName: p?.display_name ?? username };
+    },
+    async changePassword(current, next) {
+      const { data } = await sb.auth.getUser();
+      const email = data.user?.email;
+      if (!email) throw new Error("Can't change the password offline");
+      const check = await sb.auth.signInWithPassword({ email, password: current });
+      if (check.error) throw new Error(check.error.status === 400 ? 'Current password is wrong' : "Can't change the password offline");
+      const { error } = await sb.auth.updateUser({ password: next });
+      if (error) throw new Error(error.message);
+    },
+    async setEmail(email) {
+      const { error } = await sb.auth.updateUser({ email });
+      if (error) throw new Error(error.message);
     },
     async signOut() {
       // 'local' clears the saved login on this device even with no internet; a global sign-out would fail offline and keep it.
