@@ -88,3 +88,35 @@ it('a teacher can record where a learner transferred in from', async () => {
     expect(await one(db, `select joined_from from enrollments where learner_id = $1`, [L])).toEqual({ joined_from: 'Ilagan West CS' });
   });
 });
+
+describe('register_card', () => {
+  const reg = (uid: string, learner: string) => db.query(`select register_card($1, $2)`, [uid, learner]);
+  it('registers a new card for her learner and is idempotent', async () => {
+    await as(db, T, async () => {
+      await reg('AB12CD34', L);
+      await reg('AB12CD34', L);
+      expect((await db.query(`select uid, learner_id, active from cards`)).rows).toEqual([{ uid: 'AB12CD34', learner_id: L, active: true }]);
+    });
+  });
+  it("refuses a card that is already someone else's, even another teacher's learner", async () => {
+    await db.query(`insert into learners(id, last_name, first_name, sex) values ($1, 'Cruz', 'Ben', 'M')`, [L2]);
+    await db.query(`insert into enrollments(class_id, learner_id) values ($1, $2)`, [C2, L2]);
+    await db.query(`insert into cards(uid, learner_id) values ('AB12CD34', $1)`, [L2]);
+    await as(db, T, async () => {
+      await expect(reg('AB12CD34', L)).rejects.toThrow(/card already registered/);
+    });
+  });
+  it("refuses a learner who isn't hers", async () => {
+    await as(db, T2, async () => {
+      await expect(reg('AB12CD34', L)).rejects.toThrow(/not your learner/);
+    });
+  });
+});
+
+it('a select on storage does not fail because another bucket has non-uuid folder names', async () => {
+  await db.query(`insert into storage.buckets(id, name) values ('other', 'other')`);
+  await db.query(`insert into storage.objects(bucket_id, name) values ('other', 'not-a-uuid/x.png')`);
+  await as(db, T, async () => {
+    expect((await db.query(`select name from storage.objects`)).rows).toEqual([]);
+  });
+});

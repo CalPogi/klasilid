@@ -11,7 +11,7 @@ it('assignCard registers an unknown card to the learner and queues the insert', 
   const db = await classDb();
   expect(await assignCard(db, 'c', 'dd00ee11', NOW)).toEqual({ ok: true });
   expect(await db.cards.get('DD00EE11')).toMatchObject({ learnerId: 'c', active: true });
-  expect((await db.outbox.toArray())[0].op).toMatchObject({ kind: 'insert', table: 'cards', row: { uid: 'DD00EE11', learner_id: 'c', active: true } });
+  expect((await db.outbox.toArray())[0].op).toEqual({ kind: 'rpc', fn: 'register_card', args: { p_uid: 'DD00EE11', p_learner_id: 'c' } });
 });
 
 it('a card that belongs to another learner is refused with their name and nothing is written', async () => {
@@ -37,11 +37,16 @@ it('replaceCard deactivates the old card so its taps no longer count for the lea
   expect(day.unknownTaps.map(t => t.id)).toEqual(['t1']);
 });
 
-it('waitForNewCard resolves with the first unknown tap after the modal opened, ignoring known cards and older taps', async () => {
+it('waitForNewCard returns a tap from a card already on file, so the modal can say whose it is', async () => {
+  const db = await classDb();
+  await db.taps.put({ id: 'known', deviceId: 'd', cardUid: 'BBBBBBBB', at: at('08:01'), clockSuspect: false });
+  expect(await waitForNewCard(db, new Date(at('08:00')), new AbortController().signal, async () => {}, 5)).toBe('BBBBBBBB');
+});
+
+it('waitForNewCard resolves with the first tap after the modal opened, ignoring older taps', async () => {
   const db = await classDb();
   const since = new Date(at('08:00'));
   await db.taps.put({ id: 'old', deviceId: 'd', cardUid: 'OLD00001', at: at('07:59'), clockSuspect: false });
-  await db.taps.put({ id: 'known', deviceId: 'd', cardUid: 'AAAAAAAA', at: at('08:01'), clockSuspect: false });
   let polls = 0;
   const poll = async () => {
     polls++;

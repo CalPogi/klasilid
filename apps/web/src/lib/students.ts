@@ -109,7 +109,8 @@ export async function assignCard(db: KlasilidDb, learnerId: string, uid: string,
   const issuedAt = now.toISOString();
   await db.transaction('rw', db.cards, db.outbox, async () => {
     await db.cards.put({ uid: id, learnerId, active: true, issuedAt });
-    await db.outbox.add({ createdAt: issuedAt, op: { kind: 'insert', table: 'cards', row: { uid: id, learner_id: learnerId, active: true, issued_at: issuedAt } } });
+    // A server function, so a card owned outside this class is refused out loud (it lands in the rejected list).
+    await db.outbox.add({ createdAt: issuedAt, op: { kind: 'rpc', fn: 'register_card', args: { p_uid: id, p_learner_id: learnerId } } });
   });
   return { ok: true };
 }
@@ -125,12 +126,11 @@ export async function replaceCard(db: KlasilidDb, learnerId: string, now: Date):
   });
 }
 
-/** Waits for a tap from a card that isn't on file, made after `since`. Taps reach a browser through the server, so `poll` syncs. */
+/** Waits for the first tap made after `since`, whatever the card: assignCard then registers it or says whose it is. `poll` syncs. */
 export async function waitForNewCard(db: KlasilidDb, since: Date, signal: AbortSignal, poll: () => Promise<void>, intervalMs = 3000): Promise<string> {
   const from = since.toISOString();
   while (!signal.aborted) {
-    const known = new Set((await db.cards.toArray()).map(c => c.uid));
-    const tap = (await db.taps.where('at').aboveOrEqual(from).sortBy('at')).find(t => !known.has(t.cardUid));
+    const [tap] = await db.taps.where('at').aboveOrEqual(from).sortBy('at');
     if (tap) return tap.cardUid;
     await poll();
     await new Promise(r => setTimeout(r, intervalMs));

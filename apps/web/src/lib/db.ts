@@ -27,7 +27,7 @@ export type OutboxOp =
   | { kind: 'update'; table: ServerTable; match: Row; values: Row }
   | { kind: 'delete'; table: ServerTable; match: Row }
   | { kind: 'upload'; bucket: 'excuse-letters'; path: string; correctionId: string }   // the photo is read from db.photos when pushed
-  | { kind: 'rpc'; fn: 'setup_class' | 'add_learner'; args: Row };
+  | { kind: 'rpc'; fn: 'setup_class' | 'add_learner' | 'register_card'; args: Row };
 export interface OutboxItem { seq?: number; op: OutboxOp; createdAt: string }
 /** A queued change the server refused; kept so it is never silently lost, and shown to the teacher. */
 export interface RejectedItem { id?: number; op: OutboxOp; createdAt: string; error: string; at: string }

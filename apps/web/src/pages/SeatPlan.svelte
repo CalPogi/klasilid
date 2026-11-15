@@ -83,7 +83,7 @@
       </div>
       <label class="period"><Icon name="cal" /><span class="sr">Day</span>
         <select bind:value={date} aria-label="Day">{#each days as d}<option value={d}>{d === today ? `Today · ${fmtDay(d)}` : fmtDay(d)}</option>{/each}</select></label>
-      {#if !edit}<button class="btn ghost" type="button" style="width:auto;height:44px;padding:0 16px;font-size:15px" disabled={!day} onclick={startEdit}><Icon name="edit" />Edit seat plan</button>{/if}
+      {#if !edit}<button class="btn ghost" type="button" style="width:auto;height:44px;padding:0 16px;font-size:15px" disabled={!day || date !== today} title={date !== today ? 'Switch to today to edit the seat plan' : undefined} onclick={startEdit}><Icon name="edit" />Edit seat plan</button>{/if}
     </div>
   </div>
 

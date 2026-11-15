@@ -14,11 +14,26 @@
   const name = $derived(`${row.learner.firstName} ${row.learner.lastName}`);
   const session = $derived<Session>(manilaMinute(now().toISOString()) >= 12 * 60 ? 'pm' : 'am');
   const tap = $derived(today?.taps.find(t => t.id === today?.[session].inTapId));
+  // A modal dialog: focus moves in on open, Tab stays inside, Escape closes, focus goes back to what opened it.
+  let box: HTMLElement;
+  $effect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    box.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    return () => before?.focus();
+  });
+  function trap(e: KeyboardEvent) {
+    if (e.key !== 'Tab') return;
+    const f = [...box.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]')];
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
   const fmtDate = (d: string) => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(d + 'T00:00:00Z'));
 </script>
 
+<svelte:window onkeydown={e => { if (e.key === 'Escape') onclose(); }} />
 <div class="drawer-scrim open" role="presentation" onclick={onclose}></div>
-<aside class="drawer open" role="dialog" aria-modal="true" aria-labelledby="sdName" tabindex="-1" onkeydown={e => e.key === 'Escape' && onclose()}>
+<aside class="drawer open" role="dialog" aria-modal="true" aria-labelledby="sdName" tabindex="-1" bind:this={box} onkeydown={trap}>
   <div class="hrow"><span class="eyebrowless">Student</span><button class="iconbtn" type="button" aria-label="Close" onclick={onclose}><Icon name="x" cls="ico" /></button></div>
   <div class="who"><div class="avatar">{row.learner.firstName[0]}{row.learner.lastName[0]}</div>
     <div><b id="sdName">{name}</b><span>{className}{row.learner.lrn ? ` · LRN ${row.learner.lrn}` : ''}</span></div></div>

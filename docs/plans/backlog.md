@@ -21,6 +21,16 @@ Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items b
 - The status and half-day button groups have no arrow-key support, and Find a student's results have no active-descendant handling (`CorrectionModal.svelte`, `Today.svelte`).
 - `setup_class` doesn't check its inputs (dates in order, grade 4–6, section). Any signed-in user can read every school-year id, so attaching a class to another school's year needs no guessing; the impact is reading that school's calendar only (`20261115000200_rpc.sql`).
 
+### Small items from the plan 2b review
+- Object URLs for letter photos and the correction preview are never revoked, and a slow lookup can show the previous learner's letter (`Students.svelte`, `CorrectionModal.svelte`).
+- Photos are stored and uploaded as `.jpg` / `image/jpeg` whatever the phone gives (HEIC, PNG), at full size; resize and keep the real type. `CorrectionModal` passes `new Date()` instead of `now()`.
+- `waitForNewCard` compares the reader's tap time with the laptop clock; a laptop running fast ignores taps for that long. Allow a margin or compare on receipt.
+- Tap times saved offline late at night and synced after Manila midnight are refused by design (past date); give a clearer message than "refused".
+- `setLanguage` writes the pref and queues the op outside one transaction (`settings.ts`).
+- Day menu has no arrow keys and doesn't return focus to the day; the seat editor hint isn't `aria-live`; a stale drag can apply to an outside drop.
+- `transferOut` accepts a last day before the learner joined.
+- Letter photos taken on another device can't be opened yet (no signed-URL fallback in the drawer).
+
 ## Plan 4 (parents and students)
 - Consent goes through a `give_consent(version)` server function that stamps `now()` and writes the audit log, instead of a direct column update.
 - Families can't read `seats`; if the parent view shows the child's seat, add a definer function that returns only their own child's seat.

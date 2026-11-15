@@ -36,8 +36,10 @@ export function supabaseRemote(sb: SupabaseClient, db?: KlasilidDb): Remote {
         case 'upload': {
           const photo = await db?.photos.get(op.correctionId);
           if (!photo) throw new RejectedError('photo missing on this device');
-          const up = await sb.storage.from(op.bucket).upload(op.path, photo.blob, { upsert: true, contentType: 'image/jpeg' });
-          res = { error: up.error ? { message: up.error.message, status: Number((up.error as { statusCode?: string }).statusCode) || undefined } : null };
+          // No overwrite (there is no UPDATE policy); a retry after a lost response finds it stored (409), which is success.
+          const up = await sb.storage.from(op.bucket).upload(op.path, photo.blob, { upsert: false, contentType: 'image/jpeg' });
+          const status = Number((up.error as { statusCode?: string } | null)?.statusCode) || undefined;
+          res = { error: up.error && status !== 409 ? { message: up.error.message, status } : null };
           break;
         }
         case 'rpc': res = await sb.rpc(op.fn, op.args); break;

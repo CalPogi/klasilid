@@ -50,3 +50,19 @@ it('Transferred out moves the learner to the Transferred out filter', async () =
   await fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'left' } });
   await vi.waitFor(() => expect([...document.querySelectorAll('#stuTbl tbody tr')].map(r => r.textContent)).toEqual([expect.stringContaining('Carla Castro')]));
 });
+
+it('the drawer takes keyboard focus, keeps Tab inside, closes on Escape and gives focus back', async () => {
+  await show();
+  const opener = screen.getByRole('button', { name: 'Carla Castro' });
+  opener.focus();
+  await fireEvent.click(opener);
+  const drawer = screen.getByRole('dialog', { name: 'Carla Castro' });
+  await vi.waitFor(() => expect(drawer.contains(document.activeElement)).toBe(true));
+  const focusables = [...drawer.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]')];
+  focusables[focusables.length - 1].focus();
+  await fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
+  expect(document.activeElement).toBe(focusables[0]);
+  await fireEvent.keyDown(document.body, { key: 'Escape' });
+  await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: 'Carla Castro' })).toBeNull());
+  expect(document.activeElement).toBe(opener);
+});

@@ -32,11 +32,28 @@ grant execute on function public.add_learner(uuid, uuid, text, text, text, text,
 -- Excuse-letter photos: private bucket, path '<class id>/<correction id>.jpg'. Only that class's teacher can add or read them;
 -- no update or delete policy, so stored letters can't be changed.
 insert into storage.buckets (id, name, public) values ('excuse-letters', 'excuse-letters', false) on conflict (id) do nothing;
+-- CASE guards the uuid cast: AND isn't guaranteed to short-circuit, and other buckets may use non-uuid folder names.
 create policy excuse_letters_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'excuse-letters' and private.is_class_teacher(((storage.foldername(name))[1])::uuid));
+  with check (case when bucket_id = 'excuse-letters' then private.is_class_teacher(((storage.foldername(name))[1])::uuid) else false end);
 create policy excuse_letters_select on storage.objects for select to authenticated
-  using (bucket_id = 'excuse-letters' and private.is_class_teacher(((storage.foldername(name))[1])::uuid));
+  using (case when bucket_id = 'excuse-letters' then private.is_class_teacher(((storage.foldername(name))[1])::uuid) else false end);
 
 -- Where a learner transferred in from (Add student form).
 alter table enrollments add column joined_from text;
 grant update (joined_from) on enrollments to authenticated;
+
+-- Cards are keyed by uid. Registering goes through this function so a card already on file (even another teacher's learner's)
+-- is refused out loud instead of silently ignored; a retry for the same learner is a no-op.
+create function public.register_card(p_uid text, p_learner_id uuid) returns void
+language plpgsql security definer set search_path = public, private as $$
+begin
+  if not private.teaches_learner(p_learner_id) then
+    raise exception 'not your learner';
+  end if;
+  if exists (select 1 from cards where uid = p_uid and learner_id <> p_learner_id) then
+    raise exception 'card already registered';
+  end if;
+  insert into cards (uid, learner_id) values (p_uid, p_learner_id) on conflict (uid) do nothing;
+end $$;
+revoke execute on function public.register_card(text, uuid) from public, anon;
+grant execute on function public.register_card(text, uuid) to authenticated;

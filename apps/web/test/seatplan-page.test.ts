@@ -57,3 +57,11 @@ it('editor: rows and seats steppers stop at 1 and 10', async () => {
   for (let i = 0; i < 9; i++) await fireEvent.click(more);
   expect(more.disabled).toBe(true);
 });
+
+it('editing is only offered for today (a plan is saved from today, with today’s class list)', async () => {
+  await show();
+  await fireEvent.change(screen.getByLabelText('Day'), { target: { value: '2026-11-12' } });
+  const edit = screen.getByRole('button', { name: 'Edit seat plan' }) as HTMLButtonElement;
+  await vi.waitFor(() => expect(edit.disabled).toBe(true));
+  expect(edit.title).toBe('Switch to today to edit the seat plan');
+});

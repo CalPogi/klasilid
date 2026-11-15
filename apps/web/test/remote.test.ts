@@ -3,7 +3,7 @@ import { supabaseRemote, RejectedError } from '../src/lib/remote-supabase';
 import { supabaseAuth } from '../src/lib/session';
 
 /** A stand-in for supabase-js that records which filters each table query used. */
-function fakeClient(opts: { pushError?: { message: string; code?: string; status?: number } } = {}) {
+function fakeClient(opts: { pushError?: { message: string; code?: string; status?: number }; uploadError?: { message: string; statusCode?: string } } = {}) {
   const filters: Record<string, string[]> = {};
   const query = (table: string) => {
     filters[table] = [];
@@ -21,7 +21,7 @@ function fakeClient(opts: { pushError?: { message: string; code?: string; status
       update: (values: unknown) => ({ match: async (m: unknown) => { calls.push(['update', table, values, m]); return { error: null }; } }),
       delete: () => ({ match: async (m: unknown) => { calls.push(['delete', table, m]); return { error: null }; } }),
     }),
-    storage: { from: (bucket: string) => ({ upload: async (path: string, blob: unknown, o: unknown) => { calls.push(['upload', bucket, path, o]); return { error: null }; } }) },
+    storage: { from: (bucket: string) => ({ upload: async (path: string, blob: unknown, o: unknown) => { calls.push(['upload', bucket, path, o]); return { error: opts.uploadError ?? null }; } }) },
     rpc: async () => ({ error: opts.pushError ?? null }),
     auth: { signOut: vi.fn(async () => ({ error: null })) },
   };
@@ -71,5 +71,13 @@ it('an upload reads the photo from this device; with no local photo it is a Reje
   await expect(r.push({ kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' })).rejects.toBeInstanceOf(RejectedError);
   await db.photos.put({ correctionId: 'x', blob: new Blob(['jpg']), name: 'x.jpg' });
   await r.push({ kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' });
-  expect(calls).toEqual([['upload', 'excuse-letters', 'c1/x.jpg', { upsert: true, contentType: 'image/jpeg' }]]);
+  expect(calls).toEqual([['upload', 'excuse-letters', 'c1/x.jpg', { upsert: false, contentType: 'image/jpeg' }]]);
+});
+
+it('a retried upload that finds the letter already stored (409) counts as done', async () => {
+  const { openDb } = await import('../src/lib/db');
+  const db = openDb('t-' + crypto.randomUUID());
+  await db.photos.put({ correctionId: 'x', blob: new Blob(['jpg']), name: 'x.jpg' });
+  const { sb } = fakeClient({ uploadError: { message: 'The resource already exists', statusCode: '409' } });
+  await expect(supabaseRemote(sb, db).push({ kind: 'upload', bucket: 'excuse-letters', path: 'c1/x.jpg', correctionId: 'x' })).resolves.toBeUndefined();
 });
