@@ -202,6 +202,53 @@ void test_partial_ack_leaves_the_rest_queued() {  // Review Focus 3
   TEST_ASSERT_EQUAL(2, log.unsentCount());
 }
 
+// ---- Task 6: local API history and roster parsing ----
+void test_since_returns_sent_and_unsent_after_seq() {
+  MemoryStorage s(16);
+  TapLog log(s, 16);
+  log.begin();
+  uint32_t a = addTap(log, "04A1B2C3"), b = addTap(log, "04B2C3D4"), c = addTap(log, "04C3D4E5");
+  log.markSent(&b, 1);
+  TapRec out[4];
+  TEST_ASSERT_EQUAL(2, log.since(a, out, 4));  // b (sent) and c (unsent), oldest first
+  TEST_ASSERT_EQUAL_UINT32(b, out[0].seq);
+  TEST_ASSERT_EQUAL_UINT32(c, out[1].seq);
+  TEST_ASSERT_EQUAL(1, log.since(0, out, 1));  // respects max
+  TEST_ASSERT_EQUAL_UINT32(a, out[0].seq);
+  TEST_ASSERT_EQUAL(0, log.since(c, out, 4));
+}
+
+void test_parse_roster_maps_names_and_windows() {
+  Card cards[4];
+  Window w[4];
+  size_t nc = 0, nw = 0;
+  TEST_ASSERT_TRUE(parseRoster(
+      "{\"cards\":[{\"uid\":\"04A1B2C3\",\"name\":\"Ana A.\"},{\"uid\":\"04B2C3D4\",\"name\":\"Maria Concepcion Josefina Z.\"}],"
+      "\"windows\":[{\"session\":\"am\",\"kind\":\"in\",\"opens\":390,\"lateAfter\":435,\"closes\":480},"
+      "{\"session\":\"pm\",\"kind\":\"out\",\"opens\":960,\"lateAfter\":null,\"closes\":1050}],\"ignoreRepeatMinutes\":3}",
+      cards, 4, nc, w, 4, nw));
+  TEST_ASSERT_EQUAL(2, nc);
+  TEST_ASSERT_EQUAL_STRING("04A1B2C3", cards[0].uid);
+  TEST_ASSERT_EQUAL_STRING("Ana A.", cards[0].name);
+  TEST_ASSERT_EQUAL(23, strlen(cards[1].name));  // long names are cut, never overflow
+  TEST_ASSERT_EQUAL(2, nw);
+  TEST_ASSERT_EQUAL('a', w[0].session);
+  TEST_ASSERT_EQUAL('i', w[0].kind);
+  TEST_ASSERT_EQUAL_UINT16(435, w[0].lateAfter);
+  TEST_ASSERT_EQUAL('p', w[1].session);
+  TEST_ASSERT_EQUAL('o', w[1].kind);
+  TEST_ASSERT_EQUAL_UINT16(KL_NO_LATE, w[1].lateAfter);
+  TEST_ASSERT_EQUAL_UINT16(1050, w[1].closes);
+}
+
+void test_parse_roster_bad_json_is_false() {
+  Card cards[2];
+  Window w[2];
+  size_t nc = 9, nw = 9;
+  TEST_ASSERT_FALSE(parseRoster("{\"cards\":[", cards, 2, nc, w, 2, nw));
+  TEST_ASSERT_FALSE(parseRoster("{\"error\":\"unauthorized\"}", cards, 2, nc, w, 2, nw));
+}
+
 void setup() {
   delay(2000);  // let the serial monitor attach
   UNITY_BEGIN();
@@ -221,6 +268,9 @@ void setup() {
   RUN_TEST(test_parse_ack_unions_acked_and_rejected);
   RUN_TEST(test_parse_ack_bad_json_returns_zero);
   RUN_TEST(test_partial_ack_leaves_the_rest_queued);
+  RUN_TEST(test_since_returns_sent_and_unsent_after_seq);
+  RUN_TEST(test_parse_roster_maps_names_and_windows);
+  RUN_TEST(test_parse_roster_bad_json_is_false);
   UNITY_END();
 }
 

@@ -50,6 +50,7 @@ class TapLog {
   enum class Add { Ok, Full, Error };
   Add add(const char* uid, uint32_t unix, uint32_t syncedUnix, uint32_t& seqOut);
   size_t unsent(TapRec* out, size_t max);  // oldest first
+  size_t since(uint32_t afterSeq, TapRec* out, size_t max);  // sent or not, seq > afterSeq, oldest first (local API)
   void markSent(const uint32_t* seqs, size_t n);  // unknown seqs ignored; repeating is harmless
   size_t unsentCount() const { return unsentCount_; }
   uint32_t nextSeq() const { return nextSeq_; }

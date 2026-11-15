@@ -10,6 +10,11 @@
 #include "hw/display.h"
 #include "hw/pins.h"
 #include "hw/rfid.h"
+#include "net/config.h"
+#include "net/rosterfetch.h"
+#include "net/uploader.h"
+#include "net/web.h"
+#include "net/wifi.h"
 #include "roster.h"
 #include "rostercache.h"
 #include "store/littlefs_storage.h"
@@ -61,6 +66,7 @@ static void handleTap(const char* uid) {
   display::tap(known ? name : "Card not registered", status, when);
   if (known) buzzer::ok();
   else buzzer::unknown();
+  uploader::kick();
   Serial.printf("tap %s seq %lu: %lu ms to feedback\n", uid, static_cast<unsigned long>(seq), static_cast<unsigned long>(millis() - t0));
 }
 
@@ -71,7 +77,20 @@ static void drawIdle() {
   xSemaphoreTake(logMutex, portMAX_DELAY);
   const uint32_t unsent = tapLog.unsentCount();
   xSemaphoreGive(logMutex);
-  display::idle(when, "", unsent, clockLooksValid(now) ? nullptr : "Clock not set");
+  const char* note = !clockLooksValid(now) ? "Clock not set" : uploader::note();
+  if (!note && unsent >= kCapacity) note = "Reader full - connect Wi-Fi";
+  display::idle(when, wifi::state(), unsent, note);
+}
+
+// Network work runs here, on core 0, so a slow upload or page never delays a tap (spec §8).
+static void netTask(void*) {
+  for (;;) {
+    wifi::tick();
+    web::tick();
+    uploader::tick();
+    rosterfetch::tick();
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }
 
 void setup() {
@@ -90,6 +109,13 @@ void setup() {
   }
   tapLog.begin();
   Serial.printf("log: %u unsent, next seq %lu\n", static_cast<unsigned>(tapLog.unsentCount()), static_cast<unsigned long>(tapLog.nextSeq()));
+  rosterfetch::loadCached();
+  const Config cfg = config::load();
+  wifi::begin(cfg);
+  web::begin(cfg);
+  uploader::begin(cfg);
+  rosterfetch::begin(cfg);
+  xTaskCreatePinnedToCore(netTask, "net", 12288, nullptr, 1, nullptr, 0);
 }
 
 void loop() {

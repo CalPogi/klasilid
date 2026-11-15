@@ -98,6 +98,15 @@ size_t TapLog::unsent(TapRec* out, size_t max) {
   return n;
 }
 
+size_t TapLog::since(uint32_t afterSeq, TapRec* out, size_t max) {
+  size_t n = 0;
+  const uint32_t from = afterSeq + 1 > windowStart() ? afterSeq + 1 : windowStart();
+  for (uint32_t seq = from; seq < nextSeq_ && n < max; seq++) {
+    if (s_.read(seq % capacity_, out[n]) && tapValid(out[n]) && out[n].seq == seq) n++;
+  }
+  return n;
+}
+
 void TapLog::markSent(const uint32_t* seqs, size_t n) {
   for (size_t i = 0; i < n; i++) {
     const uint32_t seq = seqs[i];
