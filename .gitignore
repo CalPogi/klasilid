@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.superpowers/
+*.xlsm
+*.xlsx
+.env*
+supabase/.temp/
