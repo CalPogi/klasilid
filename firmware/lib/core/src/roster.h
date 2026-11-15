@@ -10,3 +10,6 @@ struct Window { char session; char kind; uint16_t opens, lateAfter /* KL_NO_LATE
 // The line under the learner's name: inside an in-window "On time" (<= lateAfter) or "Late"; anything else "Recorded".
 // Same boundaries as packages/core status.ts (opens <= m <= closes).
 const char* statusFor(uint16_t minute, const Window* w, size_t n);
+
+// One registered card from the server roster, with the short name shown on the screen ("Ana A.").
+struct Card { char uid[21]; char name[24]; };
