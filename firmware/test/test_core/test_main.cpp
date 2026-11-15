@@ -3,6 +3,7 @@
 #include <unity.h>
 #include "debounce.h"
 #include "roster.h"
+#include "taplog.h"
 #include "timefmt.h"
 
 void setUp() {}
@@ -25,6 +26,119 @@ void test_status_for() {
   TEST_ASSERT_EQUAL_STRING("Recorded", statusFor(600, w, 1));
 }
 
+// ---- Task 3: tap log ----
+static uint32_t addTap(TapLog& log, const char* uid, uint32_t unix = 1794525002) {
+  uint32_t seq = 0;
+  TEST_ASSERT_TRUE(log.add(uid, unix, 1794517200, seq) == TapLog::Add::Ok);
+  return seq;
+}
+
+void test_add_then_unsent_oldest_first() {
+  MemoryStorage s(16);
+  TapLog log(s, 16);
+  TEST_ASSERT_TRUE(log.begin());
+  uint32_t a = addTap(log, "04A1B2C3", 100), b = addTap(log, "04B2C3D4", 200);
+  TEST_ASSERT_EQUAL_UINT32(a + 1, b);
+  TapRec out[4];
+  TEST_ASSERT_EQUAL(2, log.unsent(out, 4));
+  TEST_ASSERT_EQUAL_UINT32(a, out[0].seq);
+  TEST_ASSERT_EQUAL_STRING("04A1B2C3", out[0].uid);
+  TEST_ASSERT_EQUAL_UINT32(100, out[0].unix);
+  TEST_ASSERT_EQUAL_UINT32(1794517200, out[0].syncedUnix);
+  TEST_ASSERT_EQUAL_UINT32(b, out[1].seq);
+  TEST_ASSERT_EQUAL(1, log.unsent(out, 1));  // respects max
+}
+
+void test_mark_sent_removes_exactly_those_and_repeats_are_harmless() {  // Review Focus 3
+  MemoryStorage s(16);
+  TapLog log(s, 16);
+  log.begin();
+  uint32_t a = addTap(log, "04A1B2C3"), b = addTap(log, "04B2C3D4"), c = addTap(log, "04C3D4E5");
+  uint32_t ack[] = {a, c, 9999};  // 9999 was never sent: ignored
+  log.markSent(ack, 3);
+  log.markSent(ack, 3);
+  TEST_ASSERT_EQUAL(1, log.unsentCount());
+  TapRec out[4];
+  TEST_ASSERT_EQUAL(1, log.unsent(out, 4));
+  TEST_ASSERT_EQUAL_UINT32(b, out[0].seq);
+}
+
+void test_seq_survives_reboot() {
+  MemoryStorage s(16);
+  uint32_t last;
+  {
+    TapLog log(s, 16);
+    log.begin();
+    addTap(log, "04A1B2C3");
+    last = addTap(log, "04B2C3D4");
+    uint32_t ack[] = {last};
+    log.markSent(ack, 1);
+  }
+  TapLog again(s, 16);
+  TEST_ASSERT_TRUE(again.begin());
+  TEST_ASSERT_EQUAL_UINT32(last + 1, again.nextSeq());
+  TEST_ASSERT_EQUAL(1, again.unsentCount());  // the sent one stays sent after the reboot
+  TEST_ASSERT_EQUAL_UINT32(last + 1, addTap(again, "04C3D4E5"));
+}
+
+void test_torn_last_write_is_ignored_and_seq_not_reused() {  // Review Focus 1
+  MemoryStorage s(16);
+  uint32_t c;
+  {
+    TapLog log(s, 16);
+    log.begin();
+    addTap(log, "04A1B2C3");
+    addTap(log, "04B2C3D4");
+    c = addTap(log, "04C3D4E5");
+  }
+  s.corrupt(c % 16);  // power cut in the middle of writing the last record
+  TapLog again(s, 16);
+  TEST_ASSERT_TRUE(again.begin());
+  TEST_ASSERT_EQUAL(2, again.unsentCount());
+  TapRec out[4];
+  TEST_ASSERT_EQUAL(2, again.unsent(out, 4));
+  TEST_ASSERT_EQUAL_STRING("04B2C3D4", out[1].uid);
+  TEST_ASSERT_TRUE(again.nextSeq() > c);  // never hand out a seq the server may already hold
+}
+
+void test_lost_meta_write_never_reuses_seq() {  // Review Focus 1: power cut after the record, before the meta
+  MemoryStorage s(16);
+  uint32_t b;
+  {
+    TapLog log(s, 16);
+    log.begin();
+    addTap(log, "04A1B2C3");
+    s.failMetaWrites = true;
+    b = addTap(log, "04B2C3D4");
+  }
+  s.failMetaWrites = false;
+  TapLog again(s, 16);
+  again.begin();
+  TEST_ASSERT_EQUAL_UINT32(b + 1, again.nextSeq());
+  TEST_ASSERT_EQUAL(2, again.unsentCount());
+}
+
+void test_full_when_every_slot_is_unsent_and_sent_slots_are_reused() {  // Review Focus 2
+  MemoryStorage s(4);
+  TapLog log(s, 4);
+  log.begin();
+  uint32_t first = addTap(log, "04000001");
+  addTap(log, "04000002");
+  addTap(log, "04000003");
+  addTap(log, "04000004");
+  uint32_t seq = 0;
+  TEST_ASSERT_TRUE(log.add("04000005", 1794525002, 0, seq) == TapLog::Add::Full);
+  TEST_ASSERT_EQUAL(4, log.unsentCount());
+  TapRec out[4];
+  log.unsent(out, 4);
+  TEST_ASSERT_EQUAL_STRING("04000001", out[0].uid);  // nothing unsent was overwritten
+  uint32_t ack[] = {first};
+  log.markSent(ack, 1);
+  TEST_ASSERT_TRUE(log.add("04000005", 1794525002, 0, seq) == TapLog::Add::Ok);
+  TEST_ASSERT_EQUAL_UINT32(first + 4, seq);  // a Full attempt does not use up a seq
+  TEST_ASSERT_EQUAL(4, log.unsentCount());
+}
+
 void setup() {
   delay(2000);  // let the serial monitor attach
   UNITY_BEGIN();
@@ -33,6 +147,12 @@ void setup() {
   RUN_TEST(test_manila_minute);
   RUN_TEST(test_debounce_same_card_once);
   RUN_TEST(test_status_for);
+  RUN_TEST(test_add_then_unsent_oldest_first);
+  RUN_TEST(test_mark_sent_removes_exactly_those_and_repeats_are_harmless);
+  RUN_TEST(test_seq_survives_reboot);
+  RUN_TEST(test_torn_last_write_is_ignored_and_seq_not_reused);
+  RUN_TEST(test_lost_meta_write_never_reuses_seq);
+  RUN_TEST(test_full_when_every_slot_is_unsent_and_sent_slots_are_reused);
   UNITY_END();
 }
 
