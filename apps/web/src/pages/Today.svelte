@@ -7,8 +7,8 @@
   import { fmtLongDay, fmtMinutes, fmtTime, STATUS_LABEL } from '../lib/format';
 
   // Markup and class names follow the mockup's web Today page.
-  let { db, classId, teacherId, displayName, now }: {
-    db: KlasilidDb; classId: string; teacherId: string; displayName: string; now: () => Date;
+  let { db, classId, teacherId, displayName, now, onregister }: {
+    db: KlasilidDb; classId: string; teacherId: string; displayName: string; now: () => Date; onregister?: () => void;
   } = $props();
 
   let day: ClassDay | undefined = $state();
@@ -166,7 +166,7 @@
           {#each todos as t (t.id)}
             <div class="todo" class:done={done[t.id]}>
               <button class="tick" type="button" aria-label="Mark done" aria-pressed={!!done[t.id]} onclick={() => (done[t.id] = !done[t.id])}><Icon name="check" /></button>
-              <div class="txt"><b>{t.title}</b><span>{t.sub}</span></div><span class="due">{t.due}</span>
+              <div class="txt">{#if t.id === 'cards' && onregister}<button class="linkbtn" type="button" style="color:inherit;font-weight:700;padding:0" onclick={onregister}>{t.title}</button>{:else}<b>{t.title}</b>{/if}<span>{t.sub}</span></div><span class="due">{t.due}</span>
             </div>
           {/each}
         </div>

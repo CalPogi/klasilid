@@ -95,3 +95,45 @@ export async function transferOut(db: KlasilidDb, enrollmentId: string, lastDay:
       match: { class_id: e.classId, learner_id: e.learnerId }, values: { left_on: leftOn, leave_reason: leaveReason } } });
   });
 }
+
+export type AssignResult = { ok: true } | { ok: false; reason: 'taken'; ownerName: string };
+
+/** Cards are never reassigned (taps are matched to cards), so any card already on file is refused. */
+export async function assignCard(db: KlasilidDb, learnerId: string, uid: string, now: Date): Promise<AssignResult> {
+  const id = uid.trim().toUpperCase();
+  const existing = await db.cards.get(id);
+  if (existing) {
+    const owner = await db.learners.get(existing.learnerId);
+    return { ok: false, reason: 'taken', ownerName: owner ? `${owner.firstName} ${owner.lastName}` : 'another learner' };
+  }
+  const issuedAt = now.toISOString();
+  await db.transaction('rw', db.cards, db.outbox, async () => {
+    await db.cards.put({ uid: id, learnerId, active: true, issuedAt });
+    await db.outbox.add({ createdAt: issuedAt, op: { kind: 'insert', table: 'cards', row: { uid: id, learner_id: learnerId, active: true, issued_at: issuedAt } } });
+  });
+  return { ok: true };
+}
+
+/** The learner's current card stops working at once; a new one is registered after (spec §7.3). */
+export async function replaceCard(db: KlasilidDb, learnerId: string, now: Date): Promise<void> {
+  const at = now.toISOString();
+  await db.transaction('rw', db.cards, db.outbox, async () => {
+    for (const c of (await db.cards.where('learnerId').equals(learnerId).toArray()).filter(c => c.active)) {
+      await db.cards.update(c.uid, { active: false, replacedAt: at });
+      await db.outbox.add({ createdAt: at, op: { kind: 'update', table: 'cards', match: { uid: c.uid }, values: { active: false, replaced_at: at } } });
+    }
+  });
+}
+
+/** Waits for a tap from a card that isn't on file, made after `since`. Taps reach a browser through the server, so `poll` syncs. */
+export async function waitForNewCard(db: KlasilidDb, since: Date, signal: AbortSignal, poll: () => Promise<void>, intervalMs = 3000): Promise<string> {
+  const from = since.toISOString();
+  while (!signal.aborted) {
+    const known = new Set((await db.cards.toArray()).map(c => c.uid));
+    const tap = (await db.taps.where('at').aboveOrEqual(from).sortBy('at')).find(t => !known.has(t.cardUid));
+    if (tap) return tap.cardUid;
+    await poll();
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  throw new DOMException('Stopped waiting', 'AbortError');
+}

@@ -8,7 +8,7 @@
   import TransferModal from '../components/TransferModal.svelte';
   import { classDay, schoolDaysInMonth, todayManila, type ClassDay, type LearnerDay } from '../lib/attendance';
   import type { KlasilidDb, LLearner } from '../lib/db';
-  import { studentRows, type StudentFilter, type StudentRow } from '../lib/students';
+  import { replaceCard, studentRows, type StudentFilter, type StudentRow } from '../lib/students';
   import type { Mode } from '../lib/session';
 
   // Markup follows the mockup's Students page (renderStudents) and its drawer and modals.
@@ -95,7 +95,7 @@
 {#if open}
   <StudentDrawer row={open} today={todayOf(open.learner.id)} {className} {now} onclose={() => (open = undefined)}
     oncorrect={(r, s) => (correcting = { row: r, session: s })} ontransfer={() => (moving = open)}
-    oncard={() => onregister?.({ learner: open!.learner })} />
+    oncard={async a => { const l = open!.learner; if (a === 'replace') await replaceCard(db, l.id, now()); await load(); onregister?.({ learner: l }); }} />
 {/if}
 {#if adding}
   <AddStudentModal {db} {classId} {className} {days} {today} {now} onclose={() => (adding = false)}

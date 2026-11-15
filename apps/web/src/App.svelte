@@ -9,6 +9,8 @@
   import Attendance from './pages/Attendance.svelte';
   import SeatPlan from './pages/SeatPlan.svelte';
   import Students from './pages/Students.svelte';
+  import RegisterCardModal from './components/RegisterCardModal.svelte';
+  import type { LLearner } from './lib/db';
   import Setup from './pages/Setup.svelte';
   import SignIn from './pages/SignIn.svelte';
   import Soon from './pages/Soon.svelte';
@@ -36,6 +38,18 @@
   let className = $state('');
   let pending = $state(0);
   let firstSyncFailed = $state(false);
+  let registering: { learners: LLearner[]; bulk: boolean } | undefined = $state();
+  let pageKey = $state(0); // remount the page after a registration so it shows the new card
+
+  /** One learner, or everyone enrolled without an active card, in name order. */
+  async function register(t: { learner?: LLearner; bulk?: boolean }) {
+    if (t.learner) { registering = { learners: [t.learner], bulk: false }; return; }
+    const carded = new Set((await db.cards.toArray()).filter(c => c.active).map(c => c.learnerId));
+    const enrolled = (await db.enrollments.where('classId').equals(classId).toArray()).filter(e => !e.leftOn).map(e => e.learnerId);
+    const learners = (await db.learners.bulkGet(enrolled)).filter((l): l is LLearner => !!l && !carded.has(l.id))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
+    registering = { learners, bulk: true };
+  }
 
   async function refresh() {
     const saved = (await db.meta.get('classId'))?.value as string | undefined;
@@ -93,15 +107,19 @@
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
     {:else if $route === 'students'}
-      <Students {db} {classId} teacherId={session.userId} {now} {mode} />
+      {#key pageKey}<Students {db} {classId} teacherId={session.userId} {now} {mode} onregister={register} />{/key}
     {:else if $route === 'seat'}
       <SeatPlan {db} {classId} teacherId={session.userId} {now} />
     {:else if $route === 'attendance'}
       <Attendance {db} {classId} teacherId={session.userId} {now} />
     {:else}
-      <Today {db} {classId} teacherId={session.userId} displayName={session.displayName} {now} />
+      {#key pageKey}<Today {db} {classId} teacherId={session.userId} displayName={session.displayName} {now} onregister={() => register({ bulk: true })} />{/key}
     {/if}
   </Shell>
+  {#if registering}
+    <RegisterCardModal {db} learners={registering.learners} bulk={registering.bulk} {mode} {now} poll={async () => { await sync(); }}
+      onclose={() => { registering = undefined; pageKey++; }} />
+  {/if}
 {/if}
 
 <style>
