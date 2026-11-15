@@ -1,0 +1,12 @@
+#pragma once
+#include <stddef.h>
+#include <stdint.h>
+
+constexpr uint16_t KL_NO_LATE = 0xFFFF;
+
+// One tap window from the server roster. session 'a'/'p' (am/pm), kind 'i'/'o' (in/out), times in Manila minutes.
+struct Window { char session; char kind; uint16_t opens, lateAfter /* KL_NO_LATE = none */, closes; };
+
+// The line under the learner's name: inside an in-window "On time" (<= lateAfter) or "Late"; anything else "Recorded".
+// Same boundaries as packages/core status.ts (opens <= m <= closes).
+const char* statusFor(uint16_t minute, const Window* w, size_t n);
