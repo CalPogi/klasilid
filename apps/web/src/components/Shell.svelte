@@ -3,8 +3,8 @@
   import type { Route } from '../lib/router';
   import Icon from './Icon.svelte';
 
-  let { current, className, pendingChanges, children }: {
-    current: Route; className: string; pendingChanges: number; children?: Snippet;
+  let { current, className, pendingChanges, userName = '', onsignout, children }: {
+    current: Route; className: string; pendingChanges: number; userName?: string; onsignout?: () => void; children?: Snippet;
   } = $props();
 
   // Pages built in plan 2b: shown so the layout matches the mockup, disabled until then.
@@ -32,6 +32,7 @@
     {#if pendingChanges > 0}
       <p class="pending">{pendingChanges} changes waiting to sync</p>
     {/if}
+    {#if onsignout}<button class="signout" type="button" onclick={onsignout}>Sign out{userName ? ` · ${userName}` : ''}</button>{/if}
   </aside>
 
   <main class="main">{@render children?.()}</main>
@@ -68,6 +69,7 @@
   .snav .soon { opacity: .45; cursor: not-allowed; }
   .grp { font-size: 12.5px; color: #9C9CA6; padding: 14px 12px 6px; font-weight: 700; }
   .pending { margin: auto 0 0; background: var(--dark-2); border-radius: 14px; padding: 12px; font-size: 13px; color: var(--on-dark-muted); }
+  .signout { margin-top: 8px; min-height: 44px; border: 0; border-radius: 14px; background: var(--dark-2); color: var(--on-dark); font-weight: 600; cursor: pointer; }
   .main { min-width: 0; }
   .fnav, .mdrop { display: none; }
 
