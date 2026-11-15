@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core --noEmit"
+    "typecheck": "tsc -p packages/core --noEmit",
+    "dev": "npm run dev -w @klasilid/web"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",
