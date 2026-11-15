@@ -12,6 +12,8 @@ export interface LCorrection extends Correction { learnerId: string; classId: st
 export interface LCalendarDay { id: string; schoolYearId: string; date: IsoDate; type: 'holiday' | 'half' | 'suspension' | 'event'; name: string }
 export interface LSeatPlan { id: string; classId: string; rows: number; cols: number; effectiveFrom: IsoDate }
 export interface LMeta { key: string; value: unknown }
+/** Excuse-letter photo kept on this device until plan 2b uploads it. */
+export interface LPhoto { correctionId: string; blob: Blob; name: string }
 
 export type OutboxOp =
   | { kind: 'insert'; table: 'attendance_corrections' | 'tap_windows' | 'seat_plans' | 'calendar_days'; row: Record<string, unknown> }
@@ -30,6 +32,7 @@ export class KlasilidDb extends Dexie {
   seatPlans!: Table<LSeatPlan, string>;
   outbox!: Table<OutboxItem, number>;
   meta!: Table<LMeta, string>;
+  photos!: Table<LPhoto, string>;
 
   constructor(name: string) {
     super(name);
@@ -46,6 +49,7 @@ export class KlasilidDb extends Dexie {
       outbox: '++seq',
       meta: 'key',
     });
+    this.version(2).stores({ photos: 'correctionId' });
   }
 }
 

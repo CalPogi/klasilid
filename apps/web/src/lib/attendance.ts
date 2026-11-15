@@ -1,7 +1,7 @@
 import { computeDay, manilaDate, windowsForDate, type DayType, type HalfDay, type IsoDate, type ReviewItem } from '@klasilid/core';
 import type { KlasilidDb, LLearner, LTap } from './db';
 
-export interface LearnerDay { learner: LLearner; am: HalfDay; pm: HalfDay; review: ReviewItem[] }
+export interface LearnerDay { learner: LLearner; am: HalfDay; pm: HalfDay; review: ReviewItem[]; /** this learner's taps that day */ taps: LTap[] }
 export interface ClassDay {
   date: IsoDate;
   dayType: DayType;
@@ -46,12 +46,12 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
 
   const corrections = (await db.corrections.where('date').equals(date).toArray()).filter(c => c.classId === classId);
   const rows: LearnerDay[] = learners.map(learner => {
+    const mine = taps.filter(t => ownerOf.get(t.cardUid) === learner.id);
     const r = computeDay({
       date, dayType, now: now.toISOString(), windows, ignoreRepeatMinutes: cls?.ignoreRepeatMinutes ?? 3,
-      taps: taps.filter(t => ownerOf.get(t.cardUid) === learner.id),
-      corrections: corrections.filter(c => c.learnerId === learner.id),
+      taps: mine, corrections: corrections.filter(c => c.learnerId === learner.id),
     });
-    return { learner, am: r.am, pm: r.pm, review: needsSetup ? [] : r.review };
+    return { learner, am: r.am, pm: r.pm, review: needsSetup ? [] : r.review, taps: mine };
   });
 
   const am = rows.map(r => r.am.status);
