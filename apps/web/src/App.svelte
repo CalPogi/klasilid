@@ -9,6 +9,7 @@
   import Attendance from './pages/Attendance.svelte';
   import SeatPlan from './pages/SeatPlan.svelte';
   import Students from './pages/Students.svelte';
+  import Calendar from './pages/Calendar.svelte';
   import RegisterCardModal from './components/RegisterCardModal.svelte';
   import type { LLearner } from './lib/db';
   import Setup from './pages/Setup.svelte';
@@ -36,6 +37,7 @@
   let ready = $state(false);
   let classId = $state('');
   let className = $state('');
+  let schoolYearId = $state('');
   let pending = $state(0);
   let firstSyncFailed = $state(false);
   let registering: { learners: LLearner[]; bulk: boolean } | undefined = $state();
@@ -56,6 +58,7 @@
     const cls = (saved && (await db.classes.get(saved))) || (await db.classes.filter(c => c.isAdvisory).first());
     classId = cls?.id ?? '';
     className = cls ? `Gr. ${cls.grade} ${cls.section}` : '';
+    schoolYearId = cls?.schoolYearId ?? '';
     pending = await pendingCount(db);
   }
   async function sync(): Promise<boolean> {
@@ -106,6 +109,8 @@
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
     {:else if $route in SOON}
       <Soon title={SOON[$route as SoonRoute]} />
+    {:else if $route === 'calendar'}
+      <Calendar {db} {classId} {schoolYearId} {now} />
     {:else if $route === 'students'}
       {#key pageKey}<Students {db} {classId} teacherId={session.userId} {now} {mode} onregister={register} />{/key}
     {:else if $route === 'seat'}

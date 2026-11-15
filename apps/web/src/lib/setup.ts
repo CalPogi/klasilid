@@ -1,6 +1,7 @@
 import { hm, validateWindows, type IsoDate, type Session, type TapKind } from '@klasilid/core';
 import type { KlasilidDb, LLearner, LTapWindow, OutboxItem } from './db';
 import { todayManila } from './attendance';
+import { holidayRows } from './calendar';
 
 export interface SetupWindow { session: Session; kind: TapKind; opens: string; lateAfter: string | null; closes: string }
 export interface SetupLearner { lastName: string; firstName: string; middleName?: string; sex: 'M' | 'F' }
@@ -90,14 +91,16 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date): Prom
       closes: w.closes, effective_from: w.effectiveFrom } })),
     op({ kind: 'insert', table: 'seat_plans', row: { id: planId, class_id: classId, rows: s.rows, cols: s.cols, effective_from: today } }),
   ];
+  const holidays = holidayRows(yearId, createdAt); // queued after setup_class, which creates the year
 
-  await db.transaction('rw', [db.classes, db.learners, db.enrollments, db.tapWindows, db.seatPlans, db.outbox, db.meta], async () => {
+  await db.transaction('rw', [db.classes, db.learners, db.enrollments, db.tapWindows, db.seatPlans, db.calendarDays, db.outbox, db.meta], async () => {
     await db.classes.put({ id: classId, schoolYearId: yearId, subject: 'Advisory', grade: s.grade, section: s.section, isAdvisory: true, ignoreRepeatMinutes: 3 });
     await db.learners.bulkPut(learners);
     await db.enrollments.bulkPut(learners.map(l => ({ id: crypto.randomUUID(), classId, learnerId: l.id, joinedOn: today })));
     await db.tapWindows.bulkPut(windows);
     await db.seatPlans.put({ id: planId, classId, rows: s.rows, cols: s.cols, effectiveFrom: today });
-    await db.outbox.bulkAdd(outbox);
+    await db.calendarDays.bulkPut(holidays.rows);
+    await db.outbox.bulkAdd([...outbox, ...holidays.ops]);
     await db.meta.put({ key: 'classId', value: classId });
   });
   return classId;

@@ -1,5 +1,6 @@
 import { hm, manilaDate, type IsoDate } from '@klasilid/core';
 import type { KlasilidDb, LCard, LEnrollment, LLearner, LTap, LTapWindow } from './db';
+import { PH_HOLIDAYS } from './calendar';
 
 // Invented names only (spec §11). Never put a real learner's name here.
 export const FIRST = ['Ana', 'Ben', 'Carla', 'Dino', 'Ella', 'Franco', 'Gia', 'Hugo', 'Ivy', 'Jomar', 'Kaye', 'Leo', 'Mika',
@@ -66,7 +67,7 @@ export async function seedDemo(db: KlasilidDb, now: Date): Promise<void> {
     });
   });
 
-  await db.transaction('rw', [db.classes, db.learners, db.cards, db.enrollments, db.tapWindows, db.taps, db.seatPlans, db.seats, db.meta], async () => {
+  await db.transaction('rw', [db.classes, db.learners, db.cards, db.enrollments, db.tapWindows, db.taps, db.seatPlans, db.seats, db.calendarDays, db.meta], async () => {
     await db.classes.put({ id: DEMO_CLASS_ID, schoolYearId: 'demo-sy', subject: 'Advisory', grade: 6, section: 'Diamond', isAdvisory: true, ignoreRepeatMinutes: 3 });
     await db.learners.bulkPut(learners);
     await db.cards.bulkPut(cards);
@@ -77,6 +78,7 @@ export async function seedDemo(db: KlasilidDb, now: Date): Promise<void> {
     const order = [...learners].sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
     await db.seatPlans.put({ id: 'demo-plan', classId: DEMO_CLASS_ID, rows: 8, cols: 5, effectiveFrom: '2026-06-01', createdAt: '2026-06-01T00:00:00.000Z' });
     await db.seats.bulkPut(order.map((l, k) => ({ id: `demo-s-${k}`, planId: 'demo-plan', row: Math.floor(k / 5), col: k % 5, learnerId: l.id })));
+    await db.calendarDays.bulkPut(PH_HOLIDAYS.map((h, k) => ({ id: `demo-h-${k}`, schoolYearId: 'demo-sy', date: h.date, type: 'holiday' as const, name: h.name })));
     await db.meta.put({ key: 'demoSeeded', value: true });
   });
 }
