@@ -8,7 +8,7 @@ export default defineConfig({
     name: 'web',
     environment: 'jsdom',
     include: ['test/**/*.test.ts'],
-    setupFiles: ['fake-indexeddb/auto'],
+    setupFiles: ['fake-indexeddb/auto', './test/setup.ts'],
     testTimeout: 15_000, // seeding demo data into fake-indexeddb is slow when the whole suite runs in parallel
   },
 });

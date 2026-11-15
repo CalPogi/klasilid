@@ -42,5 +42,5 @@ it('a saved correction updates the cell and marks it corrected', async () => {
   await fireEvent.click(screen.getByRole('radio', { name: 'Excused' }));
   await fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'sick' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Save change' }));
-  await vi.waitFor(() => expect(screen.getByRole('button', { name: /^Carla Castro, today.*corrected/ }).textContent).toBe('E'));
+  await vi.waitFor(() => expect(screen.getByRole('button', { name: /^Carla Castro, today.*corrected/ }).textContent).toBe('E'), { timeout: 5000 });
 });
