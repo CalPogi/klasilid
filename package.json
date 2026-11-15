@@ -1,0 +1,17 @@
+{
+  "name": "klasilid",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core --noEmit"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
