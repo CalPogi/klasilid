@@ -20,6 +20,9 @@
   import SignIn from './pages/SignIn.svelte';
   import Soon from './pages/Soon.svelte';
   import Today from './pages/Today.svelte';
+  import UpdateBanner from './components/UpdateBanner.svelte';
+  import { platform } from './lib/native';
+  import { findUpdate, tauriUpdateDeps, type Update } from './lib/updates';
 
   import type { AuthPort, Mode } from './lib/session';
   import type { KlasilidDb } from './lib/db';
@@ -89,6 +92,17 @@
     return () => { clearInterval(t); removeEventListener('online', sync); };
   });
 
+  // Windows and Android apps: look for a new version at start and once a day (design §4). The website skips this.
+  let update: Update | null = $state(null);
+  $effect(() => {
+    const p = platform();
+    if (deps || p === 'web') return;
+    const look = async () => { update = (await findUpdate(tauriUpdateDeps(p))) ?? update; };
+    look();
+    const t = setInterval(look, 24 * 60 * 60 * 1000);
+    return () => clearInterval(t);
+  });
+
   async function leave() {
     if (!auth) return;
     if (pending > 0 && !confirm(`${pending} changes haven't synced yet. They stay on this device and sync next time you sign in.`)) return;
@@ -105,6 +119,7 @@
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
   <Shell current={$route} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
     classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
+    {#if update}<UpdateBanner {update} />{/if}
     {#if !classId && firstSyncFailed}
       <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
     {:else if !classId}
