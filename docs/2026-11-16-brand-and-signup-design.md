@@ -99,9 +99,9 @@ The owner wants the **principal and the other advisers of San Isidro West Centra
 - The logo directions themselves, the palette, the type pairing, the layout and copy, within the anti-goals.
 - Which real app screens to show as proof (from the running app or the v37 mockup).
 
-## Open questions for the owner
+## Owner's answers (2026-11-16)
 
-1. Where door reader requests should go: the Supabase table (default above), the owner's email, or a Messenger link.
-2. Whether the landing page may name San Isidro West Central School. The principal's written approval is still outstanding (main spec §14), and naming the school could read as an endorsement.
-3. Who the page says is behind Klasilid, and a contact. This also completes the held-back privacy notice, which the request form needs, because it collects names and contacts.
-4. Whether the page may quote the owner's mother as the first adviser using it.
+1. **Door reader requests go to the owner's email.** Builder's call on how: a "Request a door reader" button opens the visitor's own email app with a prefilled subject and body (name, section, contact, message). There is no form backend, no `reader_requests` table and no spam to manage. This replaces the table described above.
+2. **The landing page does not name the school.** Wording like "built with advisers at a public elementary school in Isabela" instead.
+3. **The owner is named as the maker, with his email.** On the canvas both are visible placeholders, `[YOUR NAME]` and `[YOUR EMAIL]`, which the owner fills in during review. The privacy notice gets the same values and can then be published.
+4. **No testimonial** from the owner's mother.
