@@ -1,0 +1,125 @@
+# Builds the Windows installer and the Android APK and publishes them to the public
+# CalPogi/klasilid-releases repo (design §5). Push a tag like v0.6.0, or run it by hand as a dry run.
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to build, like v0.6.0
+        default: v0.0.1
+      dry_run:
+        description: Build only, don't publish
+        type: boolean
+        default: true
+permissions:
+  contents: read
+env:
+  TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx vitest run
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: apps/desktop/src-tauri }
+      - run: npm ci
+      - run: node scripts/release.mjs set-version ${{ env.TAG }} apps/desktop/src-tauri/tauri.conf.json
+      - name: Build installer
+        working-directory: apps/desktop
+        run: npx tauri build --bundles nsis
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Rename
+        shell: bash
+        run: |
+          d=apps/desktop/src-tauri/target/release/bundle/nsis
+          cp "$(ls $d/*-setup.exe | head -1)" Klasilid-Setup.exe
+          cp "$(ls $d/*-setup.exe.sig | head -1)" Klasilid-Setup.exe.sig
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            Klasilid-Setup.exe
+            Klasilid-Setup.exe.sig
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: Install the NDK
+        run: |
+          sdkmanager "ndk;27.0.12077973"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: apps/desktop/src-tauri }
+      - run: npm ci
+      - run: node scripts/release.mjs set-version ${{ env.TAG }} apps/desktop/src-tauri/tauri.conf.json
+      # The Android project is generated fresh on every build; patch-android is the only change made to it.
+      - name: Generate the Android project
+        working-directory: apps/desktop
+        run: |
+          npx tauri android init --ci
+          npx tauri icon app-icon.svg
+      - run: node scripts/release.mjs patch-android apps/desktop/src-tauri/gen/android/app/build.gradle.kts
+      - name: Signing key
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/klasilid.p12"
+          echo "KL_KEYSTORE=$RUNNER_TEMP/klasilid.p12" >> "$GITHUB_ENV"
+      - name: Build APK
+        working-directory: apps/desktop
+        run: npx tauri android build --apk --target aarch64 armv7 x86_64
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          KL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      - name: Rename
+        run: cp "$(find apps/desktop/src-tauri/gen/android/app/build/outputs/apk -name '*universal-release*.apk' | head -1)" Klasilid.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Klasilid.apk
+
+  publish:
+    needs: [windows, android]
+    if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { merge-multiple: true }
+      - run: node scripts/release.mjs manifest ${{ env.TAG }} Klasilid-Setup.exe.sig latest.json
+      - name: Publish to klasilid-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          v="${TAG#v}"
+          gh release create "$TAG" Klasilid-Setup.exe Klasilid.apk latest.json \
+            --repo CalPogi/klasilid-releases --title "Klasilid $v" --notes "Klasilid $v"
