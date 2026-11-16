@@ -3,61 +3,137 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Klasilid · Attendance by tap</title>
-  <meta name="description" content="Klasilid takes class attendance when students tap their card at the classroom door. It works without internet." />
+  <title>Klasilid · Attendance that takes itself</title>
+  <meta name="description" content="Learners tap a card at the classroom door. Klasilid writes down the time, marks who is late, and has the class ready for the adviser by the first bell, with or without internet." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <a class="brand" href="/"><span class="logo">k</span>Klasilid</a>
-      <a href="/app/">Sign in</a>
-    </header>
+  <!-- Ported from the approved canvas board "Landing page" (plan 6c, Task 5). -->
+  <header class="wrap top">
+    <a class="brand" href="#top" aria-label="Klasilid home">
+      <svg width="36" height="36" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="19" fill="#16161A"></rect><path d="M22 12v40" stroke="#FF7A1A" stroke-width="10" stroke-linecap="round"></path><path d="M45 13L25 32l20 19" fill="none" stroke="#16161A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></path><path d="M45 13L25 32l20 19" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path></svg>Klasilid
+    </a>
+    <nav aria-label="Main">
+      <a href="#morning">How it works</a>
+      <a href="#reader">The door reader</a>
+      <a class="strong" href="app/">Sign in</a>
+    </nav>
+  </header>
 
-    <main>
-      <section class="hero">
-        <span class="logo logo-lg" aria-hidden="true">k</span>
+  <main>
+    <section id="top" class="wrap hero">
+      <div class="hero-row">
         <h1>Attendance that takes itself.</h1>
-        <p class="lead">Students tap their card at the classroom door. Klasilid marks them on time or late, keeps the seat plan,
-          and works even when the school internet is down.</p>
-        <div class="downloads">
-          <a class="btn primary" href="https://github.com/CalPogi/klasilid-releases/releases/latest/download/Klasilid.apk">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Download for Android</a>
-          <a class="btn primary" href="https://github.com/CalPogi/klasilid-releases/releases/latest/download/Klasilid-Setup.exe">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Download for Windows</a>
-          <a class="btn" href="/app/">Open in browser</a>
+        <div class="hero-side">
+          <p>Learners tap a card at the classroom door. Klasilid writes down the time, marks who is late, and has the class ready for the adviser by the first bell, with or without internet.</p>
+          <div class="ctas">
+            <a class="btn accent" href="#request">Request a door reader</a>
+            <a class="btn plain" href="app/">Sign in</a>
+          </div>
         </div>
-        <p class="note">Android 7 or newer · Windows 10 or 11 (64-bit) · iPhone: use Open in browser.</p>
-      </section>
+      </div>
+      <figure class="hero-shot">
+        <img class="laptop" src="img/today.png" width="2880" height="1800" alt="Klasilid's Today page: 36 of 38 learners in class, 4 late after 7:15 AM, 2 absent, and the learners who need attention" />
+        <img class="phone" src="img/phone-today.png" width="780" height="1688" alt="The same Today page on a phone" />
+      </figure>
+    </section>
 
-      <section class="cards" aria-label="What Klasilid does">
-        <div class="card"><h2>Tap in, tap out</h2><p>A small reader by the door records each card tap with the right time, morning and afternoon.</p></div>
-        <div class="card"><h2>No internet? Still works</h2><p>The reader saves every tap and keeps time on its own, then sends them once the internet is back.</p></div>
-        <div class="card"><h2>Made for the adviser</h2><p>Today's attendance, the month's record, the seat plan and the school calendar in one place.</p></div>
-      </section>
-
-      <section class="help" id="install">
-        <h2>Installing on Windows</h2>
-        <ol>
-          <li>Open <b>Klasilid-Setup.exe</b>.</li>
-          <li>If Windows says it protected your PC, click <b>More info</b>, then <b>Run anyway</b>. Klasilid isn't in the Microsoft Store yet.</li>
+    <section id="morning" class="wrap split morning">
+      <div class="text">
+        <h2>One school morning, minute by minute</h2>
+        <ol class="timeline">
+          <li><b class="t">6:40</b><span><b>Maria Flores taps in first.</b> The reader shows her name and beeps once. Nobody has to call her name.</span></li>
+          <li><b class="t">7:15</b><span><b>Late begins,</b> at the time the adviser chose for her class.</span></li>
+          <li><b class="t late">7:21</b><span><b>Ana Garcia arrives.</b> Her seat turns orange: late, 7:21 AM.</span></li>
+          <li><b class="t">7:30</b><span><b>The adviser opens Klasilid.</b> 36 in class, 4 late, 2 absent, and a short list of who needs her attention.</span></li>
         </ol>
-        <h2>Installing on Android</h2>
-        <ol>
-          <li>Open <b>Klasilid.apk</b> from your downloads.</li>
-          <li>If asked, allow <b>Install unknown apps</b> for your browser, then tap <b>Install</b>. Klasilid isn't on Google Play yet.</li>
-        </ol>
-      </section>
-    </main>
+      </div>
+      <figure class="shot">
+        <img src="img/seats.png" width="2880" height="1800" loading="lazy" alt="The seat plan: each seat shows the learner's tap time, with late arrivals in orange and absent learners in red" />
+        <figcaption>The seat plan at 7:30. Every seat shows when its learner tapped in.</figcaption>
+      </figure>
+    </section>
 
-    <footer>
-      <span>© Klasilid</span>
-    </footer>
-  </div>
+    <section class="wrap split month">
+      <figure class="shot">
+        <img src="img/attendance.png" width="2880" height="1800" loading="lazy" alt="The month's attendance grid: P, L and A for every learner and school day, with absences and lates totaled" />
+      </figure>
+      <div class="text">
+        <h2>The month is already counted</h2>
+        <p>Every school day fills in from the taps: present, late or absent, with absences and lates added up for each learner.</p>
+        <p>A parent’s letter for an absence? Click the day, choose excused, write the reason and take a photo of the letter. Nothing is changed without one.</p>
+        <p>School Form 2 made from these taps is the next thing we’re building.</p>
+      </div>
+    </section>
+
+    <section id="reader" class="band">
+      <div class="wrap split">
+        <div class="photo" role="img" aria-label="Photo to come: the door reader mounted beside a classroom door">[PHOTO: the door reader beside a classroom door, a learner tapping a card]</div>
+        <div class="text">
+          <h2>A small box by the door</h2>
+          <p>It runs all day on its own. A built-in clock keeps the right time, and every tap is saved inside the box until it can be sent, so a day without internet loses nothing.</p>
+          <dl class="facts">
+            <dt>At the door</dt><dd>A screen with the learner’s name and status, and a beep.</dd>
+            <dt>For each learner</dt><dd>A card. A lost one is replaced in the app and stops working at once.</dd>
+            <dt>Setup</dt><dd>Mounted in your classroom, joined to the school Wi-Fi, every card registered.</dd>
+            <dt>Brownouts</dt><dd>Runs from a power bank. Taps already saved stay saved.</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap principal">
+      <h2>For the principal</h2>
+      <div class="points">
+        <p><b>Records you can stand behind.</b>Every arrival has its time, and every correction keeps who made it and why.</p>
+        <p><b>One calendar for the school.</b>Holidays and class suspensions apply to every section at once.</p>
+        <p><b>Learners stay private.</b>Each adviser sees only her own class, and no learner appears on this website.</p>
+        <p><b>Less copying.</b>Advisers stop moving ticks from paper to forms by hand.</p>
+      </div>
+    </section>
+
+    <section id="request" class="wrap request">
+      <div class="cta-band">
+        <div>
+          <h2>Want one for your section?</h2>
+          <p>Email your name, your grade and section, and a mobile number. We’ll reply to talk about the price and pick a day to set it up in your classroom.</p>
+        </div>
+        <a class="btn dark" href="mailto:[YOUR EMAIL]?subject=Door%20reader%20request&amp;body=Name%3A%0AGrade%20and%20section%3A%0AMobile%20number%3A%0A">Email a request</a>
+      </div>
+    </section>
+
+    <section class="wrap split end">
+      <div class="get">
+        <h2>Get the app</h2>
+        <p>For advisers who already have an account.</p>
+        <div class="rows">
+          <a href="https://github.com/CalPogi/klasilid-releases/releases/latest/download/Klasilid.apk">Android<span>Android 7 or newer</span></a>
+          <a href="https://github.com/CalPogi/klasilid-releases/releases/latest/download/Klasilid-Setup.exe">Windows<span>Windows 10 or 11</span></a>
+          <a href="app/">In your browser<span>also on iPhone</span></a>
+        </div>
+      </div>
+      <div class="faq">
+        <h2>Questions advisers ask</h2>
+        <div class="rows">
+          <details><summary>What happens when the internet is down?</summary><p>The reader keeps working. It saves each tap with the right time and sends them once the internet is back.</p></details>
+          <details><summary>Can a learner tap for a classmate?</summary><p>A card can be lent, so the seat plan shows who should be in each seat. One look tells you if a seat is empty, and any day can be corrected with a reason.</p></details>
+          <details><summary>How do I get an account?</summary><p>Sign up with your school’s code. You receive it when your door reader is set up.</p></details>
+          <details><summary>Windows says it protected my PC</summary><p>Click <b>More info</b>, then <b>Run anyway</b>. Klasilid isn’t in the Microsoft Store yet.</p></details>
+          <details><summary>Android won’t install it</summary><p>Open <b>Klasilid.apk</b> from your downloads. If asked, allow <b>Install unknown apps</b> for your browser, then tap <b>Install</b>. Klasilid isn’t on Google Play yet.</p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span>Klasilid is made by [YOUR NAME].</span>
+      <a href="mailto:[YOUR EMAIL]">[YOUR EMAIL]</a>
+    </div>
+  </footer>
 </body>
 </html>

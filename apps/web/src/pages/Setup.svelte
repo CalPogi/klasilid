@@ -5,17 +5,23 @@
   import type { KlasilidDb } from '../lib/db';
   import {
     applySetup, DEFAULT_SCHOOL, DEFAULT_WINDOWS, parseLearnerList, SCHOOL_YEARS, SECTIONS, TIMES, timeLabel, validateSetup,
-    type SetupInput,
+    claimSection, type ClaimPort, type JoinSchool, type SetupInput,
   } from '../lib/setup';
 
   // Markup follows the mockup's first-time setup wizard (modal .box.wiz with five steps).
-  let { db, now, onfinish }: { db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void } = $props();
+  // With `join` (signed up with a school code) the school is fixed, and so is the year when the school has one.
+  // With `claim` (online) the section is claimed on the server at Finish; `refused` is why the server turned down an earlier try.
+  let { db, now, onfinish, join, claim, refused = '' }: {
+    db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void; join?: JoinSchool; claim?: ClaimPort; refused?: string;
+  } = $props();
+  // svelte-ignore state_referenced_locally
+  let claimError = $state(refused);
 
   const STEPS = ['Your class', 'Students', 'Cards', 'Seats', 'School hours'];
   let step = $state(0);
   let saving = $state(false);
   let s: SetupInput = $state({
-    schoolName: DEFAULT_SCHOOL, yearLabel: SCHOOL_YEARS[0].label, startsOn: SCHOOL_YEARS[0].startsOn, endsOn: SCHOOL_YEARS[0].endsOn,
+    schoolName: join?.schoolName ?? DEFAULT_SCHOOL, yearLabel: SCHOOL_YEARS[0].label, startsOn: SCHOOL_YEARS[0].startsOn, endsOn: SCHOOL_YEARS[0].endsOn,
     grade: 6, section: '', rows: 8, cols: 5, windows: DEFAULT_WINDOWS.map(w => ({ ...w })), learners: [],
   });
   let paste = $state('');
@@ -41,7 +47,15 @@
     if (!last) { step++; return; }
     if (validateSetup(s).length) return;
     saving = true;
-    onfinish(await applySetup(db, $state.snapshot(s), now()));
+    const input = $state.snapshot(s);
+    const claimed = join && claim ? await claimSection(claim, input, join) : null;
+    if (claimed && 'error' in claimed) {
+      claimError = claimed.error;
+      step = 0;
+      saving = false;
+      return;
+    }
+    onfinish(await applySetup(db, input, now(), join, claimed ?? undefined));
   }
   const later = () => (location.hash = '#/today');
 </script>
@@ -54,13 +68,16 @@
   <div class="wiz-body">
     {#if step === 0}
       <h4>Your advisory class</h4><p class="sub2">The class whose attendance the door reader takes.</p>
+      {#if claimError}<p class="win-err" role="alert"><span>{claimError}</span>. Choose your own section, or ask the Klasilid admin.</p>{/if}
       <div class="fgrid">
         <div><label for="wzG">Grade</label><select id="wzG" bind:value={s.grade}>{#each [4, 5, 6] as g}<option value={g}>{g}</option>{/each}</select></div>
         <div><label for="wzS">Section</label>
           <select id="wzS" bind:value={s.section}><option value="" disabled>Choose a section…</option>{#each SECTIONS as sec}<option>{sec}</option>{/each}</select></div>
-        <div class="full"><label for="wzY">School year</label>
-          <select id="wzY" value={s.yearLabel} onchange={e => pickYear(e.currentTarget.value)}>{#each SCHOOL_YEARS as y}<option>{y.label}</option>{/each}</select></div>
-        <div class="full"><label for="wzSc">School</label><input id="wzSc" bind:value={s.schoolName} autocomplete="organization" /></div>
+        {#if !join?.yearId}
+          <div class="full"><label for="wzY">School year</label>
+            <select id="wzY" value={s.yearLabel} onchange={e => pickYear(e.currentTarget.value)}>{#each SCHOOL_YEARS as y}<option>{y.label}</option>{/each}</select></div>
+        {/if}
+        <div class="full"><label for="wzSc">School</label><input id="wzSc" bind:value={s.schoolName} autocomplete="organization" readonly={!!join} /></div>
       </div>
     {:else if step === 1}
       <h4>Add your learners</h4><p class="sub2">Paste the names from your class record or SF1 file, one per line as "Last name, First name Middle name". You can fix anything after.</p>

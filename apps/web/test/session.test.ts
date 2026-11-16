@@ -92,13 +92,13 @@ describe('session', () => {
   });
 });
 
-it('a wrong password shows "Wrong email or password" and stays on sign-in', async () => {
+it('a wrong password shows the wrong-login message and stays on sign-in', async () => {
   const onsignedin = vi.fn();
   render(SignIn, { db: fresh(), auth: fakeAuth(), onsignedin });
   await fireEvent.input(screen.getByLabelText('Username'), { target: { value: 'lou.test' } });
   await fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  expect(await screen.findByText('Wrong email or password')).toBeTruthy();
+  expect(await screen.findByText(WRONG_LOGIN)).toBeTruthy();
   expect(onsignedin).not.toHaveBeenCalled();
 });
 

@@ -26,6 +26,8 @@ it('placeholdersIn finds unfilled [ALLCAPS] tokens once each', () => {
   // Review Focus 3
   expect(placeholdersIn('<p>[RESPONSIBLE] — write to [CONTACT]. Again [CONTACT]. [a] [1]</p>')).toEqual(['[RESPONSIBLE]', '[CONTACT]']);
   expect(placeholdersIn('<p>All filled in.</p>')).toEqual([]);
+  // spaces allowed; the photo placeholder (lowercase, colon) does not block a deploy
+  expect(placeholdersIn('By [YOUR NAME], <a href="mailto:[YOUR EMAIL]">. [PHOTO: the reader] [ A]')).toEqual(['[YOUR NAME]', '[YOUR EMAIL]']);
 });
 
 it('patchAndroidSigning adds release signing once', () => {

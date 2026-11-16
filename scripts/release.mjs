@@ -26,7 +26,7 @@ export function updaterManifest({ version, notes, pubDate, signature, url }) {
 }
 
 export function placeholdersIn(html) {
-  return [...new Set(html.match(/\[[A-Z][A-Z_]+\]/g) ?? [])];
+  return [...new Set(html.match(/\[[A-Z][A-Z_ ]*[A-Z]\]/g) ?? [])];
 }
 
 const MARK = '// klasilid-signing';

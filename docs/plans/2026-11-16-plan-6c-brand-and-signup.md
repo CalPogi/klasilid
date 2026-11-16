@@ -246,6 +246,7 @@ apps/desktop/app-icon.svg                    Ribbon K (icons regenerated)
 
 - [ ] **Step 1:** The owner runs `npx supabase db push --remote` and types his database password.
 - [ ] **Step 2:** Deploy the function: `npx supabase functions deploy signup --no-verify-jwt --remote=wfcidrghcrpzdekckseg --use-api --yes`.
+- [ ] **Step 2b (final review, Important 4):** Check that a client can't choose the address the lockout counts. Send 11 sign-ups with a wrong code, each with a different made-up `x-forwarded-for` header. Expected: the 11th still gets 429. If it doesn't, key `index.ts` on the entry Supabase adds (log the header once to see it) and redeploy.
 - [ ] **Step 3:** The owner turns off public sign-ups: Supabase dashboard → Authentication → Sign In / Providers → "Allow new users to sign up" off. Check: a direct `auth.signUp` returns "Signups not allowed".
 - [ ] **Step 4:** Run `node scripts/school-code.mjs <new uuid> --name "<school name the owner gives>"`. The owner runs the SQL in the SQL editor and keeps the printed code. His mother signs up first (design doc).
 - [ ] **Step 5:**
