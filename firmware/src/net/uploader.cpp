@@ -3,6 +3,7 @@
 #include <time.h>
 #include "../app.h"
 #include "http.h"
+#include "messages.h"
 #include "timefmt.h"
 #include "upload.h"
 #include "wifi.h"
@@ -21,7 +22,7 @@ static std::atomic<uint32_t> lastOkUnix{0};
 void uploader::begin(const Config& c) { cfg = c; }
 void uploader::kick() { kicked = true; }
 uint32_t uploader::lastUploadAt() { return lastOkUnix; }
-const char* uploader::note() { return keyRejected ? "Reader key not accepted" : nullptr; }
+const char* uploader::note() { return keyRejected ? KL_MSG_KEY_REJECTED : nullptr; }
 
 void uploader::tick() {
   if (cfg.server.isEmpty() || cfg.deviceKey.isEmpty() || !wifi::online()) return;

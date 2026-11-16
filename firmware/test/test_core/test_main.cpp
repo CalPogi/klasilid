@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <unity.h>
 #include "debounce.h"
+#include "messages.h"
 #include "roster.h"
 #include "setupcheck.h"
 #include "taplog.h"
@@ -290,6 +291,13 @@ void test_lockout_after_five_wrong_codes_for_a_minute() {
   TEST_ASSERT_TRUE(l.allowed(62000));
 }
 
+// ---- Review I4: every small-font screen line fits 128 px (21 characters of the 6x12 font) ----
+void test_screen_lines_fit_the_display() {
+  const char* lines[] = {KL_MSG_FULL_IDLE, KL_MSG_KEY_REJECTED, KL_MSG_CLOCK, KL_MSG_TAP_HERE, KL_MSG_CONNECT,
+                         KL_MSG_NOT_SAVED, KL_MSG_RESTART};
+  for (const char* l : lines) TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(KL_SCREEN_CHARS, strlen(l), l);
+}
+
 void setup() {
   delay(2000);  // let the serial monitor attach
   UNITY_BEGIN();
@@ -314,6 +322,7 @@ void setup() {
   RUN_TEST(test_parse_roster_bad_json_is_false);
   RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
   RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
+  RUN_TEST(test_screen_lines_fit_the_display);
   UNITY_END();
 }
 

@@ -15,6 +15,7 @@
 #include "net/uploader.h"
 #include "net/web.h"
 #include "net/wifi.h"
+#include "messages.h"
 #include "roster.h"
 #include "rostercache.h"
 #include "littlefs_storage.h"
@@ -49,8 +50,8 @@ static void handleTap(const char* uid) {
   xSemaphoreGive(logMutex);
   showUntil = millis() + 2500;
   if (res != TapLog::Add::Ok) {
-    if (res == TapLog::Add::Full) display::message("Reader full", "Connect to Wi-Fi");
-    else display::message("Storage error", "Tap not saved");
+    if (res == TapLog::Add::Full) display::message("Reader full", KL_MSG_CONNECT);
+    else display::message("Storage error", KL_MSG_NOT_SAVED);
     buzzer::error();
     Serial.printf("tap %s NOT saved (%s)\n", uid, res == TapLog::Add::Full ? "full" : "storage error");
     return;
@@ -58,7 +59,7 @@ static void handleTap(const char* uid) {
   char name[24], when[12];
   timeText(now, when);
   const bool known = rostercache::nameFor(uid, name, sizeof name);
-  const char* status = "Clock not set";
+  const char* status = KL_MSG_CLOCK;
   if (clockLooksValid(now)) {
     Window w[8];
     status = statusFor(manilaMinute(now), w, rostercache::windows(w, 8));
@@ -77,8 +78,8 @@ static void drawIdle() {
   xSemaphoreTake(logMutex, portMAX_DELAY);
   const uint32_t unsent = tapLog.unsentCount();
   xSemaphoreGive(logMutex);
-  const char* note = !clockLooksValid(now) ? "Clock not set" : uploader::note();
-  if (!note && unsent >= kCapacity) note = "Reader full - connect Wi-Fi";
+  const char* note = !clockLooksValid(now) ? KL_MSG_CLOCK : uploader::note();
+  if (!note && unsent >= kCapacity) note = KL_MSG_FULL_IDLE;
   display::idle(when, wifi::state(), unsent, note);
 }
 
@@ -112,7 +113,7 @@ void setup() {
   rtc::begin();
   rfid::begin();
   if (!LittleFS.begin(true) || !storage.begin()) {
-    display::message("Storage error", "Restart the reader");
+    display::message("Storage error", KL_MSG_RESTART);
     buzzer::error();
   }
   tapLog.begin();
