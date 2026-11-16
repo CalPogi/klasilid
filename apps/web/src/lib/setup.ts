@@ -65,17 +65,49 @@ export function parseLearnerList(text: string): Omit<SetupLearner, 'sex'>[] {
   });
 }
 
-/** The school (and its current year, if any) an adviser joined with the school code. Kept in db.meta 'join' until setup finishes. */
+/** The school (and its current year, if any) an adviser joined with the school code. Kept in db.meta 'join' as "her school":
+ *  if the server later refuses her class and it disappears, the wizard reopens for the same school. */
 export interface JoinSchool { schoolId: string; schoolName: string; yearId: string | null }
+/** A section claimed on the server before setup is written locally; newYear = this adviser made the year (and adds its holidays). */
+export interface SetupClaim { classId: string; yearId: string; newYear: boolean }
+export interface ClaimPort {
+  rpc(fn: string, args: Record<string, unknown>): Promise<{ error: { message: string; code?: string } | null }>;
+  yearByLabel(schoolId: string, label: string): Promise<string | null>;
+}
+
+const setupClassArgs = (schoolId: string, s: SetupInput, yearId: string, classId: string) => ({
+  p_school_id: schoolId, p_school_name: s.schoolName.trim(), p_year_id: yearId, p_year_label: s.yearLabel,
+  p_starts: s.startsOn, p_ends: s.endsOn, p_class_id: classId, p_grade: s.grade, p_section: s.section,
+});
+
+/** Online, a joining adviser's section is claimed first, so "already has an adviser" shows while the form is still filled in.
+ *  The server puts her in the school's existing year for this label if another adviser made it meanwhile.
+ *  null = no connection: setup is queued as usual and the server decides at sync. */
+export async function claimSection(port: ClaimPort, s: SetupInput, join: JoinSchool): Promise<SetupClaim | { error: string } | null> {
+  const classId = crypto.randomUUID();
+  const guess = join.yearId ?? crypto.randomUUID();
+  try {
+    const { error } = await port.rpc('setup_class', setupClassArgs(join.schoolId, s, guess, classId));
+    if (error) return error.code ? { error: error.message } : null; // a Postgres error has a code; a failed fetch doesn't
+  } catch {
+    return null;
+  }
+  if (join.yearId) return { classId, yearId: join.yearId, newYear: false };
+  const yearId = (await port.yearByLabel(join.schoolId, s.yearLabel).catch(() => null)) ?? guess;
+  return { classId, yearId, newYear: yearId === guess };
+}
 
 /** Writes the class locally and queues it for the server, in one transaction. Returns the class id.
- *  With `join`, the class goes into that school, and into its existing year when there is one (its holidays exist already). */
-export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?: JoinSchool): Promise<string> {
+ *  With `join`, the class goes into that school, and into its existing year when there is one (its holidays exist already).
+ *  With `claim`, the class and year ids are the ones already claimed on the server (replaying setup_class is a no-op). */
+export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?: JoinSchool, claim?: SetupClaim): Promise<string> {
   const today = todayManila(now);
   const createdAt = now.toISOString();
-  const [classId, planId] = [1, 2].map(() => crypto.randomUUID());
+  const classId = claim?.classId ?? crypto.randomUUID();
+  const planId = crypto.randomUUID();
   const schoolId = join?.schoolId ?? crypto.randomUUID();
-  const yearId = join?.yearId ?? crypto.randomUUID();
+  const yearId = claim?.yearId ?? join?.yearId ?? crypto.randomUUID();
+  const yearExists = claim ? !claim.newYear : !!join?.yearId;
   const learners: LLearner[] = s.learners.map(l => ({
     id: crypto.randomUUID(), lastName: l.lastName.trim(), firstName: l.firstName.trim(),
     ...(l.middleName?.trim() ? { middleName: l.middleName.trim() } : {}), sex: l.sex,
@@ -86,9 +118,7 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?
   }));
   const op = (o: OutboxItem['op']): OutboxItem => ({ op: o, createdAt });
   const outbox: OutboxItem[] = [
-    op({ kind: 'rpc', fn: 'setup_class', args: {
-      p_school_id: schoolId, p_school_name: s.schoolName.trim(), p_year_id: yearId, p_year_label: s.yearLabel,
-      p_starts: s.startsOn, p_ends: s.endsOn, p_class_id: classId, p_grade: s.grade, p_section: s.section } }),
+    op({ kind: 'rpc', fn: 'setup_class', args: setupClassArgs(schoolId, s, yearId, classId) }),
     ...learners.map(l => op({ kind: 'rpc', fn: 'add_learner', args: {
       p_learner_id: l.id, p_class_id: classId, p_last: l.lastName, p_first: l.firstName, p_middle: l.middleName ?? null,
       p_sex: l.sex, p_joined: today } })),
@@ -98,7 +128,7 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?
     op({ kind: 'insert', table: 'seat_plans', row: { id: planId, class_id: classId, rows: s.rows, cols: s.cols, effective_from: today } }),
   ];
   // queued after setup_class, which creates the year; a joined year already has them
-  const holidays = join?.yearId ? { rows: [], ops: [] } : holidayRows(yearId, createdAt);
+  const holidays = yearExists ? { rows: [], ops: [] } : holidayRows(yearId, createdAt);
 
   await db.transaction('rw', [db.classes, db.learners, db.enrollments, db.tapWindows, db.seatPlans, db.calendarDays, db.outbox, db.meta], async () => {
     await db.classes.put({ id: classId, schoolYearId: yearId, subject: 'Advisory', grade: s.grade, section: s.section, isAdvisory: true, ignoreRepeatMinutes: 3 });
@@ -109,7 +139,6 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?
     await db.calendarDays.bulkPut(holidays.rows);
     await db.outbox.bulkAdd([...outbox, ...holidays.ops]);
     await db.meta.put({ key: 'classId', value: classId });
-    await db.meta.delete('join');
   });
   return classId;
 }

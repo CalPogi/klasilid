@@ -12,7 +12,7 @@
   import Calendar from './pages/Calendar.svelte';
   import Settings from './pages/Settings.svelte';
   import Account from './pages/Account.svelte';
-  import { DEFAULT_SCHOOL, type JoinSchool } from './lib/setup';
+  import { DEFAULT_SCHOOL, type ClaimPort, type JoinSchool } from './lib/setup';
   import { signUpRemote, type SignupInput, type SignupResult } from './lib/signup';
   import SignUp from './pages/SignUp.svelte';
   import { applyTheme, savedTheme } from './lib/settings';
@@ -49,6 +49,13 @@
   let className = $state('');
   let schoolYearId = $state('');
   let join: JoinSchool | undefined = $state();
+  let refused = $state('');
+  // Online: a joining adviser's section is claimed on the server at Finish (lib/setup claimSection).
+  const claim: ClaimPort | undefined = sb ? {
+    rpc: async (fn, args) => ({ error: (await sb.rpc(fn, args)).error }),
+    yearByLabel: async (schoolId, label) =>
+      (await sb.from('school_years').select('id').eq('school_id', schoolId).eq('label', label).maybeSingle()).data?.id ?? null,
+  } : undefined;
   let pending = $state(0);
   let firstSyncFailed = $state(false);
   let registering: { learners: LLearner[]; bulk: boolean } | undefined = $state();
@@ -71,6 +78,8 @@
     className = cls ? `Gr. ${cls.grade} ${cls.section}` : '';
     schoolYearId = cls?.schoolYearId ?? '';
     join = (await db.meta.get('join'))?.value as JoinSchool | undefined;
+    // With no class, say why the server turned down the last setup (e.g. the section already has an adviser).
+    refused = classId ? '' : (await db.rejected.toArray()).reverse().find(r => r.op.kind === 'rpc' && r.op.fn === 'setup_class')?.error ?? '';
     pending = await pendingCount(db);
   }
   /** After a school-code sign-up: sign in, remember the school until setup finishes, then open the wizard. */
@@ -144,7 +153,7 @@
     {#if !classId && firstSyncFailed}
       <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
     {:else if !classId}
-      <Setup {db} {now} {join} onfinish={async () => { await refresh(); go('today'); sync(); }} />
+      <Setup {db} {now} {join} {claim} {refused} onfinish={async () => { await refresh(); go('today'); sync(); }} />
     {:else if $route === 'setup'}
       <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>

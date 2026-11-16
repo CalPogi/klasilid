@@ -8,16 +8,21 @@ const ok: SignupInput = { code: 'abcd-2345', displayName: "Ma'am Santos", userna
 const NOW = new Date('2026-11-17T02:00:00Z');
 
 function deps(over: Partial<SignupDeps> = {}) {
+  // Mirrors begin_signup_attempt: records a failure first, then counts the earlier ones in the last 10 minutes.
   const attempts: { ip: string; ok: boolean; at: Date }[] = [];
-  const created: { email: string; password: string; displayName: string }[] = [];
+  const created: { email: string; password: string; displayName: string; schoolId: string }[] = [];
   let clock = NOW;
   const d: SignupDeps & { attempts: typeof attempts; created: typeof created; tick(ms: number): void } = {
     attempts, created,
     tick(ms) { clock = new Date(clock.getTime() + ms); },
     async schoolForCodeHash(hash) { return hash === (await sha256Hex('ABCD2345')) ? SCHOOL : null; },
     async currentYear() { return 'year-1'; },
-    async failuresSince(ip, since) { return attempts.filter(a => a.ip === ip && !a.ok && a.at >= since).length; },
-    async recordAttempt(ip, ok) { attempts.push({ ip, ok, at: clock }); },
+    async startAttempt(ip) {
+      const since = clock.getTime() - 10 * 60_000;
+      const failures = attempts.filter(a => a.ip === ip && !a.ok && a.at.getTime() >= since).length;
+      return { id: attempts.push({ ip, ok: false, at: clock }) - 1, failures };
+    },
+    async clearAttempt(id) { attempts[id].ok = true; },
     async createTeacher(u) { created.push(u); return { userId: 'u-1' }; },
     now: () => clock,
     ...over,
@@ -28,7 +33,7 @@ function deps(over: Partial<SignupDeps> = {}) {
 it('creates the teacher and returns the school and its current year', async () => {
   const d = deps();
   expect(await handleSignup(ok, '1.2.3.4', d)).toEqual({ status: 200, body: { schoolId: 'school-1', schoolName: 'Sample School', yearId: 'year-1' } });
-  expect(d.created).toEqual([{ email: 'maria.santos@login.klasilid.app', password: 'longenough', displayName: "Ma'am Santos" }]);
+  expect(d.created).toEqual([{ email: 'maria.santos@login.klasilid.app', password: 'longenough', displayName: "Ma'am Santos", schoolId: 'school-1' }]);
   expect(d.attempts.map(a => a.ok)).toEqual([true]);
 });
 
@@ -40,9 +45,21 @@ it('a wrong code is refused on the code field and counted as a failure', async (
   expect(d.created).toEqual([]);
 });
 
-it('a taken username is 409 on the username field', async () => {
+it('a taken username is 409 on the username field and is not counted as a wrong code', async () => {
   const d = deps({ async createTeacher() { return { taken: true }; } });
   expect(await handleSignup(ok, '1.2.3.4', d)).toEqual({ status: 409, body: { field: 'username', message: 'That username is taken' } });
+  expect(d.attempts.map(a => a.ok)).toEqual([true]);
+});
+
+it('typing mistakes and refusals during a lockout do not count as wrong codes', async () => {
+  const d = deps();
+  for (let i = 0; i < 12; i++) await handleSignup({ ...ok, password: 'short' }, '1.2.3.4', d);
+  expect((await handleSignup(ok, '1.2.3.4', d)).status).toBe(200);
+});
+
+it('a failure inside the server is a 500 with a message, not a crash', async () => {
+  const d = deps({ async createTeacher() { throw new Error('db down'); } });
+  expect(await handleSignup(ok, '1.2.3.4', d)).toEqual({ status: 500, body: { message: 'Something went wrong. Try again.' } });
 });
 
 it('normalises the username (case, spaces) before checking and creating it', async () => {

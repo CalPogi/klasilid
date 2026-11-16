@@ -5,12 +5,17 @@
   import type { KlasilidDb } from '../lib/db';
   import {
     applySetup, DEFAULT_SCHOOL, DEFAULT_WINDOWS, parseLearnerList, SCHOOL_YEARS, SECTIONS, TIMES, timeLabel, validateSetup,
-    type JoinSchool, type SetupInput,
+    claimSection, type ClaimPort, type JoinSchool, type SetupInput,
   } from '../lib/setup';
 
   // Markup follows the mockup's first-time setup wizard (modal .box.wiz with five steps).
   // With `join` (signed up with a school code) the school is fixed, and so is the year when the school has one.
-  let { db, now, onfinish, join }: { db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void; join?: JoinSchool } = $props();
+  // With `claim` (online) the section is claimed on the server at Finish; `refused` is why the server turned down an earlier try.
+  let { db, now, onfinish, join, claim, refused = '' }: {
+    db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void; join?: JoinSchool; claim?: ClaimPort; refused?: string;
+  } = $props();
+  // svelte-ignore state_referenced_locally
+  let claimError = $state(refused);
 
   const STEPS = ['Your class', 'Students', 'Cards', 'Seats', 'School hours'];
   let step = $state(0);
@@ -42,7 +47,15 @@
     if (!last) { step++; return; }
     if (validateSetup(s).length) return;
     saving = true;
-    onfinish(await applySetup(db, $state.snapshot(s), now(), join));
+    const input = $state.snapshot(s);
+    const claimed = join && claim ? await claimSection(claim, input, join) : null;
+    if (claimed && 'error' in claimed) {
+      claimError = claimed.error;
+      step = 0;
+      saving = false;
+      return;
+    }
+    onfinish(await applySetup(db, input, now(), join, claimed ?? undefined));
   }
   const later = () => (location.hash = '#/today');
 </script>
@@ -55,6 +68,7 @@
   <div class="wiz-body">
     {#if step === 0}
       <h4>Your advisory class</h4><p class="sub2">The class whose attendance the door reader takes.</p>
+      {#if claimError}<p class="win-err" role="alert"><span>{claimError}</span>. Choose your own section, or ask the Klasilid admin.</p>{/if}
       <div class="fgrid">
         <div><label for="wzG">Grade</label><select id="wzG" bind:value={s.grade}>{#each [4, 5, 6] as g}<option value={g}>{g}</option>{/each}</select></div>
         <div><label for="wzS">Section</label>

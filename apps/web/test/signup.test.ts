@@ -2,9 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import App from '../src/App.svelte';
 import { openDb } from '../src/lib/db';
-import { applySetup, DEFAULT_WINDOWS, type SetupInput } from '../src/lib/setup';
+import { applySetup, claimSection, DEFAULT_WINDOWS, type SetupInput } from '../src/lib/setup';
 import { checkSignup, OFFLINE, signUpRemote, type SignupInput } from '../src/lib/signup';
-import type { AuthPort } from '../src/lib/session';
+import { signIn, type AuthPort } from '../src/lib/session';
+import Setup from '../src/pages/Setup.svelte';
 import SignUp from '../src/pages/SignUp.svelte';
 
 const ok: SignupInput = { code: 'ABCD-2345', displayName: "Ma'am Santos", username: 'maria.santos', password: 'longenough' };
@@ -114,7 +115,78 @@ it('applySetup in join mode with an existing year reuses the ids and queues no h
   expect(ops.some(o => 'table' in o && o.table === 'calendar_days')).toBe(false);
   expect(ops[0]).toMatchObject({ kind: 'rpc', fn: 'setup_class', args: { p_school_id: 'school-1', p_year_id: 'year-1', p_class_id: classId } });
   expect(await db.classes.get(classId)).toMatchObject({ schoolYearId: 'year-1' });
-  expect(await db.meta.get('join')).toBeUndefined();
+  // kept: if the server later refuses the class and it disappears, the wizard reopens for the same school
+  expect((await db.meta.get('join'))?.value).toMatchObject({ schoolId: 'school-1' });
+});
+
+describe('claimSection (online: the section is claimed before anything is written)', () => {
+  const join = { schoolId: 'school-1', schoolName: 'Sample School', yearId: null };
+  const port = (error: { message: string; code?: string } | null, year?: string) => {
+    const calls: Record<string, unknown>[] = [];
+    return { calls, rpc: async (_fn: string, args: Record<string, unknown>) => { calls.push(args); return { error }; },
+      yearByLabel: vi.fn(async () => year ?? (calls[0].p_year_id as string)) };
+  };
+  it('a first adviser makes the year, so its holidays are hers to add', async () => {
+    const p = port(null);
+    const c = await claimSection(p, input(), join);
+    expect(c).toEqual({ classId: p.calls[0].p_class_id, yearId: p.calls[0].p_year_id, newYear: true });
+    expect(p.calls[0]).toMatchObject({ p_school_id: 'school-1', p_grade: 6, p_section: 'Sampaguita' });
+  });
+  it('a later adviser lands in the year another adviser made', async () => {
+    expect(await claimSection(port(null, 'year-other'), input(), join)).toMatchObject({ yearId: 'year-other', newYear: false });
+  });
+  it('with the year known from sign-up it does not look it up', async () => {
+    const p = port(null);
+    expect(await claimSection(p, input(), { ...join, yearId: 'year-1' })).toMatchObject({ yearId: 'year-1', newYear: false });
+    expect(p.yearByLabel).not.toHaveBeenCalled();
+  });
+  it('a taken section comes back as the message', async () => {
+    expect(await claimSection(port({ code: 'P0001', message: 'Gr. 6 Sampaguita already has an adviser' }), input(), join))
+      .toEqual({ error: 'Gr. 6 Sampaguita already has an adviser' });
+  });
+  it('offline it returns null so setup is queued as before', async () => {
+    expect(await claimSection(port({ code: '', message: 'TypeError: Failed to fetch' }), input(), join)).toBeNull();
+    expect(await claimSection({ rpc: async () => { throw new TypeError('Failed to fetch'); }, yearByLabel: async () => null }, input(), join)).toBeNull();
+  });
+});
+
+it('the wizard keeps everything and shows the message when the section is taken', async () => {
+  const onfinish = vi.fn();
+  const db = fresh();
+  render(Setup, { db, now: () => NOW, onfinish, join: { schoolId: 'school-1', schoolName: 'Sample School', yearId: 'year-1' },
+    claim: { rpc: async () => ({ error: { code: 'P0001', message: 'Gr. 6 Sampaguita already has an adviser' } }), yearByLabel: async () => null } });
+  await fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'Ruby' } });
+  const next = () => screen.getByRole('button', { name: /^(Next|Finish)$/ });
+  await fireEvent.click(next());
+  await fireEvent.input(screen.getByLabelText('Paste a list'), { target: { value: 'Abad, Ana' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Add from list' }));
+  for (let i = 0; i < 4; i++) await fireEvent.click(next());
+  expect(await screen.findByText('Gr. 6 Sampaguita already has an adviser')).toBeTruthy();
+  expect(screen.getByLabelText('Section')).toBeTruthy(); // back on the class step
+  expect(onfinish).not.toHaveBeenCalled();
+  expect(await db.classes.count()).toBe(0);
+});
+
+it('signing in remembers the school from the profile, so a wiped device still opens the right wizard', async () => {
+  const db = fresh();
+  const auth: AuthPort = { signIn: async () => ({ userId: 'u-1', displayName: 'T', school: { id: 'school-1', name: 'Sample School' } }), signOut: async () => {} };
+  const s = await signIn(db, auth, 'maria.santos', 'longenough');
+  expect(s).not.toHaveProperty('school');
+  expect((await db.meta.get('join'))?.value).toEqual({ schoolId: 'school-1', schoolName: 'Sample School', yearId: null });
+  await db.meta.put({ key: 'join', value: { schoolId: 'school-1', schoolName: 'Sample School', yearId: 'year-1' } });
+  await signIn(db, auth, 'maria.santos', 'longenough');
+  expect((await db.meta.get('join'))?.value).toMatchObject({ yearId: 'year-1' }); // a known year is not thrown away
+});
+
+it('when the server refused the class, the reopened wizard says why', async () => {
+  const db = fresh();
+  await db.meta.put({ key: 'user', value: { userId: 'u-1', displayName: "Ma'am Test" } });
+  await db.meta.put({ key: 'join', value: { schoolId: 'school-1', schoolName: 'Sample School', yearId: 'year-1' } });
+  await db.rejected.add({ op: { kind: 'rpc', fn: 'setup_class', args: {} }, createdAt: NOW.toISOString(), error: 'Gr. 6 Sampaguita already has an adviser', at: NOW.toISOString() });
+  const auth: AuthPort = { signIn: async () => ({ userId: 'u-1', displayName: '' }), signOut: async () => {} };
+  render(App, { deps: { db, mode: 'online', auth, remote: null } });
+  expect(await screen.findByText('Gr. 6 Sampaguita already has an adviser', {}, { timeout: 3000 })).toBeTruthy();
+  location.hash = '';
 });
 
 it('applySetup in join mode without a year creates the year and its holidays', async () => {

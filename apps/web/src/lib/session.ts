@@ -5,7 +5,8 @@ import { DEMO_TEACHER_ID, seedDemo } from './demo';
 export type Mode = 'demo' | 'online';
 export interface Session { mode: Mode; userId: string; displayName: string; username?: string }
 export interface AuthPort {
-  signIn(username: string, password: string): Promise<{ userId: string; displayName: string }>;
+  /** `school`: the school a teacher signed up into with a school code (profiles.school_id). */
+  signIn(username: string, password: string): Promise<{ userId: string; displayName: string; school?: { id: string; name: string } }>;
   signOut(): Promise<void>;
   /** Re-checks the current password first. */
   changePassword?(current: string, next: string): Promise<void>;
@@ -37,7 +38,7 @@ export async function startSession(db: KlasilidDb, mode: Mode): Promise<Session 
 }
 
 export async function signIn(db: KlasilidDb, auth: AuthPort, username: string, password: string): Promise<Session> {
-  const user = await auth.signIn(username.trim(), password);
+  const { school, ...user } = await auth.signIn(username.trim(), password);
   const owner = (await db.meta.get('owner'))?.value as string | undefined;
   if (owner && owner !== user.userId) {
     const waiting = await db.outbox.count();
@@ -50,6 +51,9 @@ export async function signIn(db: KlasilidDb, auth: AuthPort, username: string, p
   const cached = { ...user, username: username.trim() };
   await db.meta.put({ key: 'owner', value: user.userId });
   await db.meta.put({ key: 'user', value: cached });
+  // Her school comes from the server, so setup reopens for it on any device; a year already known here is kept.
+  if (school && ((await db.meta.get('join'))?.value as { schoolId?: string } | undefined)?.schoolId !== school.id)
+    await db.meta.put({ key: 'join', value: { schoolId: school.id, schoolName: school.name, yearId: null } });
   return { mode: 'online', ...cached };
 }
 
@@ -79,8 +83,9 @@ export function supabaseAuth(sb: SupabaseClient): AuthPort {
       const email = username.includes('@') ? username : `${username.toLowerCase()}@login.klasilid.app`;
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : "Can't reach Klasilid right now. Check the internet and try again.");
-      const { data: p } = await sb.from('profiles').select('display_name').eq('id', data.user.id).maybeSingle();
-      return { userId: data.user.id, displayName: p?.display_name ?? username };
+      const { data: p } = await sb.from('profiles').select('display_name, school_id, schools(name)').eq('id', data.user.id).maybeSingle();
+      const schoolName = (p?.schools as { name?: string } | null)?.name;
+      return { userId: data.user.id, displayName: p?.display_name ?? username, ...(p?.school_id && schoolName ? { school: { id: p.school_id, name: schoolName } } : {}) };
     },
     async changePassword(current, next) {
       const { data } = await sb.auth.getUser();

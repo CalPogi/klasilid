@@ -5,16 +5,17 @@ import { sha256Hex } from '../tap/handler.ts';
 export interface SignupDeps {
   schoolForCodeHash(hash: string): Promise<{ schoolId: string; schoolName: string } | null>;
   currentYear(schoolId: string, today: string): Promise<string | null>;
-  failuresSince(ip: string, since: Date): Promise<number>;
-  recordAttempt(ip: string, ok: boolean): Promise<void>;
-  createTeacher(u: { email: string; password: string; displayName: string }): Promise<{ userId: string } | { taken: true }>;
+  /** Records this attempt as a wrong code and returns the address's earlier wrong codes in the last 10 minutes, atomically. */
+  startAttempt(ip: string): Promise<{ id: number; failures: number }>;
+  /** This attempt was not a wrong code after all. */
+  clearAttempt(id: number): Promise<void>;
+  createTeacher(u: { email: string; password: string; displayName: string; schoolId: string }): Promise<{ userId: string } | { taken: true }>;
   now(): Date;
 }
 type Field = 'code' | 'displayName' | 'username' | 'password';
 type Result = { status: number; body: unknown };
 
 const RESERVED = ['admin', 'administrator', 'klasilid', 'support', 'help', 'root', 'owner', 'teacher'];
-const WINDOW_MS = 10 * 60_000;
 const MAX_FAILURES = 10;
 const normalCode =(c: string) => c.toUpperCase().replace(/[\s-]/g, '');
 const manilaToday = (d: Date) => new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
@@ -37,22 +38,30 @@ export function pickYear(years: { id: string; startsOn: string; endsOn: string }
 }
 
 export async function handleSignup(body: unknown, ip: string, deps: SignupDeps): Promise<Result> {
-  if ((await deps.failuresSince(ip, new Date(deps.now().getTime() - WINDOW_MS))) >= MAX_FAILURES)
-    return { status: 429, body: { message: 'Too many tries. Wait 10 minutes and try again.' } };
+  try {
+    const attempt = await deps.startAttempt(ip);
+    const notWrongCode = async (r: Result) => { await deps.clearAttempt(attempt.id); return r; };
+    if (attempt.failures >= MAX_FAILURES)
+      return notWrongCode({ status: 429, body: { message: 'Too many tries. Wait 10 minutes and try again.' } });
 
-  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : '');
-  const user = str('username').trim().toLowerCase();
-  const bad = problem(str('code'), str('displayName'), user, str('password'));
-  if (bad) return { status: 400, body: { field: bad[0], message: bad[1] } };
+    const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : '');
+    const user = str('username').trim().toLowerCase();
+    const bad = problem(str('code'), str('displayName'), user, str('password'));
+    if (bad) return notWrongCode({ status: 400, body: { field: bad[0], message: bad[1] } });
 
-  // The hash is looked up, not compared here: equality on a sha256 leaks nothing usable about the code.
-  const school = await deps.schoolForCodeHash(await sha256Hex(normalCode(str('code'))));
-  await deps.recordAttempt(ip, !!school);
-  if (!school) return { status: 400, body: { field: 'code', message: 'That school code isn’t right. Check it with the Klasilid admin.' } };
+    // The hash is looked up, not compared here: equality on a sha256 leaks nothing usable about the code.
+    const school = await deps.schoolForCodeHash(await sha256Hex(normalCode(str('code'))));
+    if (!school) return { status: 400, body: { field: 'code', message: 'That school code isn’t right. Check it with the Klasilid admin.' } };
 
-  const made = await deps.createTeacher({ email: `${user}@login.klasilid.app`, password: str('password'), displayName: str('displayName').trim() });
-  if ('taken' in made) return { status: 409, body: { field: 'username', message: 'That username is taken' } };
+    const made = await deps.createTeacher({
+      email: `${user}@login.klasilid.app`, password: str('password'), displayName: str('displayName').trim(), schoolId: school.schoolId,
+    });
+    if ('taken' in made) return notWrongCode({ status: 409, body: { field: 'username', message: 'That username is taken' } });
 
-  return { status: 200, body: { ...school, yearId: await deps.currentYear(school.schoolId, manilaToday(deps.now())) } };
+    return notWrongCode({ status: 200, body: { ...school, yearId: await deps.currentYear(school.schoolId, manilaToday(deps.now())) } });
+  } catch (e) {
+    console.error('signup failed', e);
+    return { status: 500, body: { message: 'Something went wrong. Try again.' } };
+  }
 }
