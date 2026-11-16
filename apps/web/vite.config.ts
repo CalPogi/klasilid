@@ -3,6 +3,7 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  base: './', // one build for the Tauri apps and for Pages, where the app lives at /app/
   plugins: [svelte(), svelteTesting()],
   test: {
     name: 'web',

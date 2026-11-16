@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Klasilid main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "process:allow-restart",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/CalPogi/klasilid-releases/*" }]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://github.com/CalPogi/klasilid-releases/*" },
+        { "url": "https://objects.githubusercontent.com/*" },
+        { "url": "https://release-assets.githubusercontent.com/*" }
+      ]
+    }
+  ]
+}
