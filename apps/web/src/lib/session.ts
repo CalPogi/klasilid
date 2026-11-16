@@ -11,7 +11,7 @@ export interface AuthPort {
   changePassword?(current: string, next: string): Promise<void>;
   setEmail?(email: string): Promise<void>;
 }
-export const WRONG_LOGIN = 'Wrong email or password';
+export const WRONG_LOGIN = 'That username or password isn’t right. Check both and try again.';
 
 /** Demo and real data never share a local database, so demo rows can't be pushed to a real account. */
 export const dbName = (mode: Mode) => (mode === 'demo' ? 'klasilid-demo' : 'klasilid');
