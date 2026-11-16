@@ -18,6 +18,9 @@ tauri = { version = "~2.12", features = [] }
 tauri-plugin-process = "~2.4"
 tauri-plugin-http = "~2.9"
 tauri-plugin-opener = "~2.7"
+# tauri::generate_context! expands to code that uses serde and serde_json directly.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "~2.14"

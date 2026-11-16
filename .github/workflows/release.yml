@@ -75,11 +75,13 @@ jobs:
         with: { node-version: 22, cache: npm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
-      - name: Install the NDK
+      # GitHub's Ubuntu image already has the Android SDK and an NDK (setup-android@v3 fails on the retired
+      # 'tools' package), so use them directly.
+      - name: Use the preinstalled NDK
         run: |
-          sdkmanager "ndk;27.0.12077973"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          test -n "$ANDROID_HOME" && test -d "$ANDROID_NDK_LATEST_HOME"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "Android SDK: $ANDROID_HOME, NDK: $ANDROID_NDK_LATEST_HOME"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
