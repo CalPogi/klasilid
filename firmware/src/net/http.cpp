@@ -5,19 +5,14 @@
 
 int http::request(const Config& c, const char* method, const String& path, const char* body, size_t len, String& response) {
   const String url = c.server + path;
+  // https only, certificate checked: the device key travels in a header (review I1). Never setInsecure().
+  if (!url.startsWith("https://")) return -1;
   WiFiClientSecure secure;
-  WiFiClient plain;  // http:// only for a server on the local network during development
+  secure.setCACert(KL_ROOT_CAS);
   HTTPClient h;
   h.setConnectTimeout(10000);
   h.setTimeout(10000);
-  bool ok;
-  if (url.startsWith("https://")) {
-    secure.setCACert(KL_ROOT_CAS);  // certificates are checked; never setInsecure() (the key travels in a header)
-    ok = h.begin(secure, url);
-  } else {
-    ok = h.begin(plain, url);
-  }
-  if (!ok) return -1;
+  if (!h.begin(secure, url)) return -1;
   h.addHeader("x-device-key", c.deviceKey);
   int code;
   if (strcmp(method, "POST") == 0) {

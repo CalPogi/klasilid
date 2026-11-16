@@ -6,6 +6,7 @@
 #include "../app.h"
 #include "../hw/clock.h"
 #include "timefmt.h"
+#include "setupcheck.h"
 #include "upload.h"
 #include "uploader.h"
 #include "wifi.h"
@@ -81,11 +82,23 @@ static void sendSetup(const String& code, const char* error) {
   server.send(error ? 400 : 200, "text/html", page(b));
 }
 
-static bool unlocked(const String& code) { return cfg.pairToken.isEmpty() || config::tokenMatches(cfg, code); }
+static Lockout lockout;  // shared by the setup page and the local API
+
+// Checks a pairing code against the saved one, counting wrong guesses. Before any code is set, everything is open.
+static bool codeOk(const String& code) {
+  if (cfg.pairToken.isEmpty()) return true;
+  if (!lockout.allowed(millis())) return false;
+  if (config::tokenMatches(cfg, code)) {
+    lockout.success();
+    return true;
+  }
+  lockout.fail(millis());
+  return false;
+}
 
 static void wrongCode() {
   delay(1000);  // slows down guessing the 8-digit code
-  sendPairing("Wrong pairing code");
+  sendPairing(lockout.allowed(millis()) ? "Wrong pairing code" : "Too many wrong codes. Wait a minute.");
 }
 
 static void handleRoot() {
@@ -95,19 +108,13 @@ static void handleRoot() {
 
 static void handleUnlock() {
   const String code = server.arg("code");
-  if (!unlocked(code)) return wrongCode();
+  if (!codeOk(code)) return wrongCode();
   sendSetup(code, nullptr);
-}
-
-static bool digitsOnly(const String& s) {
-  for (char ch : s)
-    if (ch < '0' || ch > '9') return false;
-  return true;
 }
 
 static void handleSave() {
   const String code = server.arg("code");
-  if (!unlocked(code)) return wrongCode();
+  if (!codeOk(code)) return wrongCode();
   Config c = cfg;
   c.ssid = server.arg("ssid") == "__other__" ? server.arg("ssidOther") : server.arg("ssid");
   if (server.arg("pass").length()) c.pass = server.arg("pass");
@@ -117,17 +124,14 @@ static void handleSave() {
   c.deviceId = server.arg("deviceId");
   c.deviceId.trim();
   c.deviceId.toUpperCase();
-  if (server.arg("deviceKey").length()) c.deviceKey = server.arg("deviceKey");
-  c.deviceKey.trim();
+  String typedKey = server.arg("deviceKey");
+  typedKey.trim();
+  if (typedKey.length()) c.deviceKey = typedKey;
   c.pairToken = server.arg("pairToken");
   c.pairToken.trim();
 
-  const char* error = nullptr;
-  if (c.ssid.isEmpty()) error = "Choose a Wi-Fi network";
-  else if (!c.server.startsWith("https://") && !c.server.startsWith("http://")) error = "The server address starts with https://";
-  else if (c.deviceId.length() != 7 || !c.deviceId.startsWith("KD-") || !digitsOnly(c.deviceId.substring(3))) error = "The reader ID looks like KD-0001";
-  else if (c.deviceKey.isEmpty()) error = "Enter the reader key";
-  else if (c.pairToken.length() != 8 || !digitsOnly(c.pairToken)) error = "The pairing code has 8 digits";
+  const SetupForm form{c.ssid.c_str(), c.server.c_str(), c.deviceId.c_str(), c.deviceKey.c_str(), c.pairToken.c_str()};
+  const char* error = setupError(form, cfg.server.c_str(), typedKey.length() > 0);
   if (error) return sendSetup(code, error);
 
   config::save(c);
@@ -136,7 +140,8 @@ static void handleSave() {
 }
 
 static bool apiAllowed() {
-  if (config::tokenMatches(cfg, server.header("x-pairing-token"))) return true;
+  if (!cfg.pairToken.isEmpty() && codeOk(server.header("x-pairing-token"))) return true;
+  delay(1000);  // slows down guessing, like the setup page
   server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
   return false;
 }

@@ -3,6 +3,7 @@
 #include <unity.h>
 #include "debounce.h"
 #include "roster.h"
+#include "setupcheck.h"
 #include "taplog.h"
 #include "timefmt.h"
 #include "upload.h"
@@ -249,6 +250,46 @@ void test_parse_roster_bad_json_is_false() {
   TEST_ASSERT_FALSE(parseRoster("{\"error\":\"unauthorized\"}", cards, 2, nc, w, 2, nw));
 }
 
+// ---- Review I1: setup form checks and pairing-code lockout ----
+void test_setup_needs_https_and_the_key_again_when_the_server_changes() {
+  SetupForm ok{"SchoolWiFi", "https://abc.supabase.co", "KD-0001", "k3y", "12345678"};
+  TEST_ASSERT_NULL(setupError(ok, "", false));
+  TEST_ASSERT_NULL(setupError(ok, "https://abc.supabase.co", false));  // same server: the saved key is kept
+  SetupForm http = ok;
+  http.server = "http://192.168.1.50";
+  TEST_ASSERT_EQUAL_STRING("The server address starts with https://", setupError(http, "", true));
+  TEST_ASSERT_EQUAL_STRING("Type the reader key again when you change the server",
+                           setupError(ok, "https://old.supabase.co", false));
+  TEST_ASSERT_NULL(setupError(ok, "https://old.supabase.co", true));
+  SetupForm bad = ok;
+  bad.ssid = "";
+  TEST_ASSERT_EQUAL_STRING("Choose a Wi-Fi network", setupError(bad, "", true));
+  bad = ok;
+  bad.deviceId = "KD-12";
+  TEST_ASSERT_EQUAL_STRING("The reader ID looks like KD-0001", setupError(bad, "", true));
+  bad = ok;
+  bad.deviceKey = "";
+  TEST_ASSERT_EQUAL_STRING("Enter the reader key", setupError(bad, "", true));
+  bad = ok;
+  bad.pairToken = "1234567a";
+  TEST_ASSERT_EQUAL_STRING("The pairing code has 8 digits", setupError(bad, "", true));
+}
+
+void test_lockout_after_five_wrong_codes_for_a_minute() {
+  Lockout l;
+  for (int i = 0; i < 4; i++) l.fail(1000);
+  TEST_ASSERT_TRUE(l.allowed(1000));
+  l.fail(1000);  // fifth wrong code
+  TEST_ASSERT_FALSE(l.allowed(1000));
+  TEST_ASSERT_FALSE(l.allowed(60999));
+  TEST_ASSERT_TRUE(l.allowed(61000));
+  l.fail(61000);  // the count started over after the lockout
+  TEST_ASSERT_TRUE(l.allowed(61000));
+  l.success();
+  for (int i = 0; i < 4; i++) l.fail(62000);
+  TEST_ASSERT_TRUE(l.allowed(62000));
+}
+
 void setup() {
   delay(2000);  // let the serial monitor attach
   UNITY_BEGIN();
@@ -271,6 +312,8 @@ void setup() {
   RUN_TEST(test_since_returns_sent_and_unsent_after_seq);
   RUN_TEST(test_parse_roster_maps_names_and_windows);
   RUN_TEST(test_parse_roster_bad_json_is_false);
+  RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
+  RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
   UNITY_END();
 }
 
