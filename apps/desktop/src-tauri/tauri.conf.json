@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Klasilid",
+  "version": "0.0.0",
+  "identifier": "app.klasilid.teacher",
+  "build": {
+    "beforeDevCommand": "npm run dev -w @klasilid/web",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build -w @klasilid/web",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Klasilid",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "android": {
+      "minSdkVersion": 24
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/CalPogi/klasilid-releases/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0NzkxQUVGODI5Nzc1QzMKUldURGRaZUM3eHA1VkV1aFBHc0FsTXlaSDd1REd5dEwzZ2xrb1dqQmQ0U1U2MkFQTmY3Z09mL0sK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The mockup's .logo: orange rounded square (radius 11/36 ≈ 31%) with a dark (on-accent ink) lowercase "k".
+       The "k" is drawn with strokes, not text: the icon renderer has no fonts. -->
+  <rect width="1024" height="1024" rx="313" fill="#FF7A1A"/>
+  <g fill="none" stroke="#16161A" stroke-width="124" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M378 232V792"/>
+    <path d="M676 452L410 640"/>
+    <path d="M520 566L690 792"/>
+  </g>
+</svg>
