@@ -63,7 +63,7 @@ The website updates by itself on every push to `main`; it doesn't need a tag.
 ## Before real learner data goes in
 
 - **Upgrade Supabase to Pro** (US$25 a month): dashboard → Organization → Billing. Pro has daily backups; the free plan has none, and the design requires them. After upgrading, you can delete `.github/workflows/keepalive.yml` (it only stops the free plan pausing the project).
-- **Fill in the privacy notice** (`apps/landing/privacy.html`): who is responsible for the data, and the contact for removal requests. The website won't deploy while the placeholders are there.
+- **Publish the privacy notice:** fill in `docs/privacy-notice-draft.html` (who is responsible, the contact for removal requests), move it back to `apps/landing/privacy.html`, and add the "Privacy notice" link to the landing page footer. The website won't deploy while it still has `[PLACEHOLDERS]`.
 - Have the principal's written approval (main design §11).
 
 ## What the teacher sees when installing

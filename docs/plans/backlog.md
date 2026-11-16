@@ -62,3 +62,4 @@ Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items b
 - Release workflow: pass the tag as `"$TAG"` (not `${{ env.TAG }}`) inside scripts; pin third-party actions to commit SHAs; re-running a half-done publish fails with "already exists" (use `gh release upload --clobber`).
 - `versionFromTag` accepts leading zeros (`v01.2.3`); `set-version` prints nothing.
 - Check in the Android app: the attendance CSV export (blob download) and the excuse-photo picker may not work in the Android WebView; if not, route them through Tauri save/share.
+- **Before real learner data:** publish the privacy notice (owner skipped it at go-live on 2026-11-16). Draft: `docs/privacy-notice-draft.html`; it needs the responsible person and the removal contact. See `docs/release.md`.
