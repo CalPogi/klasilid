@@ -38,6 +38,13 @@ Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items b
 ## Plan 5 (reader firmware)
 - Done in plan 5: `acked` and `rejected` both leave the reader's queue; `tappedAt` is sent with `Z`.
 - Still to do at bring-up: run the on-board Unity tests (`docs/reader/bring-up.md` step 4) and record the result.
+- Small items from the plan 5 review (firmware):
+  - After a 200 with an empty or unreadable ack, the uploader posts the next full batch at once; wait unless `m > 0`.
+  - A mistyped server address or a 400 retries silently; show "Server not reached" on the idle screen after a few failures.
+  - While the saved Wi-Fi password is wrong, STA retries can drop the teacher's phone off the hotspot; pause retries while a phone is connected (`WiFi.softAPgetStationNum()`).
+  - `parseRoster` can cut a long name in the middle of a UTF-8 character (ñ).
+  - "Storage error" at boot is replaced by the idle screen after 1 s; keep it as an idle note.
+  - If the school blocks NTP and the DS3231 lost its time, uploads never start; the app-sets-clock item in plan 6 covers it.
 
 ## Plan 6 (Windows/Android apps)
 - Local relay: read `GET /taps?since=` from the reader (header `x-pairing-token`) when there's no internet and post the taps to the server. The response has the upload body shape `{deviceId, taps}`.

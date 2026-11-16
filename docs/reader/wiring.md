@@ -6,8 +6,9 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
 ## Before you start
 
 - **The RC522 card reader runs on 3.3 V only.** Its 3.3V pin goes to the ESP32 pin labelled **3V3**, never to VIN or 5V. 5 V can damage it.
-- **Each pin takes one wire.** The ESP32 has only one 3V3 pin and two GND pins, so not every part can plug into them. The clock (DS3231) and the screen (OLED) get their power from two ordinary ESP32 pins, **D32** (3.3 V) and **D33** (ground), which the firmware switches on at start-up. They use very little power, so this is safe.
+- **Each pin takes one wire.** The ESP32 has only one 3V3 pin and two GND pins, so not every part can plug into them. The clock (DS3231) and the screen (OLED) get their power from two ordinary ESP32 pins, **D32** (3.3 V) and **D33** (ground), which the firmware switches on at start-up. They use little power (about 20 mA together), so this usually works; bring-up step 5 checks it with a multimeter.
 - **The screen plugs into the clock, not the ESP32.** The DS3231 has two sets of pins: a 6-pin side (`32K SQW SCL SDA VCC GND`) and a 4-pin side (`SCL SDA VCC GND`). The ESP32 connects to the 6-pin side; the OLED connects to the 4-pin side, which passes everything through.
+- **Check the buzzer module first.** Look at the small transistor on it. If it reads **S8050** (or the listing says "high level trigger"), it works on VIN as wired below. If it reads **S8550** (or "low level trigger"), it can't be switched off from 5 V: it would sound all the time. That kind needs 3.3 V instead, which means an ESP32 expansion board (see the end of this page).
 - Pin labels are printed next to each pin. Some ESP32 boards print `G5` or just `5` instead of `D5`; they are the same pin.
 
 ## One row per wire
@@ -30,7 +31,7 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
 | 13 | DS3231 4-pin side **GND** | OLED screen | GND |
 | 14 | DS3231 4-pin side **SDA** | OLED screen | SDA |
 | 15 | DS3231 4-pin side **SCL** | OLED screen | SCL |
-| 16 | ESP32 **VIN** (5 V from USB) | Buzzer | VCC (sometimes +) |
+| 16 | ESP32 **VIN** (5 V from USB; S8050 buzzer modules only) | Buzzer | VCC (sometimes +) |
 | 17 | ESP32 **GND** (the other one) | Buzzer | GND (sometimes −) |
 | 18 | ESP32 **D25** | Buzzer | I/O (sometimes S or SIG) |
 
@@ -77,7 +78,7 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
   <text x="380" y="420" text-anchor="middle" fill="#475569">Red = power, black = ground. Only the buzzer uses VIN (5 V); the RC522 uses 3V3.</text>
 </svg>
 
-**Cleaner option for a second reader:** an "ESP32 30-pin expansion board" (about ₱150 on Lazada) has a 3V3, GND and 5V pin beside every signal pin. With it, rows 8 and 9 can go to real 3V3 and GND pins instead of D32 and D33; nothing else changes.
+**Cleaner option for a second reader:** an "ESP32 30-pin expansion board" (about ₱150 on Lazada) has a 3V3, GND and 5V pin beside every signal pin. With it, rows 8 and 9 can go to real 3V3 and GND pins instead of D32 and D33, and an S8550 buzzer module can take its VCC from a 3V3 pin; nothing else changes.
 
 ## Putting it in the box
 

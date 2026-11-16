@@ -33,14 +33,15 @@ You should see `Klasilid reader`, then a line like `log: 0 unsent, next seq 1`. 
 python -m platformio test -e esp32dev
 ```
 
-Expected: every Unity test passes (`19 Tests 0 Failures 0 Ignored`, then `PASSED`). These are the tests for the tap log, debounce, time, upload body, ack and roster parsing that couldn't run before the board arrived. Copy the summary into the plan 5 notes. After the tests, upload the real firmware again (step 2): the tests replace it.
+Expected: both test groups pass. `test_core` shows `22 Tests 0 Failures 0 Ignored` (tap log, debounce, time, upload body, ack and roster parsing, setup-page checks, screen text). `test_storage` shows `3 Tests 0 Failures 0 Ignored` and prints the slowest tap write, which must be under 150 ms. `test_storage` erases the reader's flash; that's fine on a new reader. These are the tests that couldn't run before the board arrived. Copy the summary into the plan 5 notes. After the tests, upload the real firmware again (step 2): the tests replace it.
 
 ## 5. Check each part
 
 With the reader running (step 2 again, then the monitor from step 3):
 - **Screen:** shows the time (or `--:--` and "Clock not set" until the first Wi-Fi sync) and "Tap your card".
 - **Card reader:** tap a card. The screen shows "Card not registered" and the buzzer gives two short beeps. The monitor prints `tap 04A1B2C3 seq 1: 85 ms to feedback`.
-- **Buzzer beeps all the time** right after power-on: open `firmware/src/hw/pins.h`, change `BUZZER_ACTIVE_LOW = false` to `true`, and upload again.
+- **Buzzer beeps all the time** right after power-on: first check the transistor on the buzzer module (wiring guide, "Check the buzzer module first"). An S8550 module can't work from VIN; it needs 3.3 V. With an S8050 module, open `firmware/src/hw/pins.h`, change `BUZZER_ACTIVE_LOW = false` to `true`, and upload again.
+- **Power for the clock and screen:** with the screen showing the time, measure between the ESP32's D32 and D33 pins with a multimeter (DC volts). It should read 3.0 V or more. Lower than that, or the screen flickers: buy the ESP32 expansion board named in the wiring guide and move rows 8 and 9 to its 3V3 and GND pins.
 - **Clock keeps time:** after step 6 has synced it once, unplug the USB for a minute and plug it back in. The time on the screen is still right (the DS3231 runs on its coin cell).
 - **Nothing on the screen, or "clock" errors:** check rows 8–15 of the wiring guide. D32 and D33 power both the clock and the screen; SDA and SCL swapped is the other usual cause.
 
@@ -66,7 +67,7 @@ In the monitor, each tap prints `… ms to feedback`. Tap ten times; every numbe
 
 ## If something goes wrong
 
-- **"Reader key not accepted"** on the screen: the key typed on the setup page doesn't match the SQL from step 6. Run `new-reader.mjs` again with `--id` and the same Reader ID, replace the row in Supabase, and type the new key.
+- **"Key not accepted"** on the screen: the key typed on the setup page doesn't match the SQL from step 6. Run `node scripts/new-reader.mjs <class-id> --id KD-0001` (the same Reader ID). In the Supabase SQL editor, first run `delete from devices where id = 'KD-0001';`, then the new insert line. Open the setup page (it asks for the old pairing code), and type the new key and the new pairing code.
 - **Monitor shows `upload failed (-1)`** over and over while Wi-Fi works: the server's TLS certificate may have moved to a root the reader doesn't know. Add the root certificate to `firmware/src/net/roots.h` and upload again.
-- **"Reader full - connect Wi-Fi"**: 8,192 taps are waiting. Get the reader onto Wi-Fi; nothing is lost.
+- **"Full: connect Wi-Fi"**: 8,192 taps are waiting. Get the reader onto Wi-Fi; nothing is lost.
 - **"Clock not set"**: the DS3231 lost its time (coin cell flat or loose). Taps are still saved and marked so the teacher can check them; the next Wi-Fi connection sets the clock.
