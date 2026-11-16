@@ -65,11 +65,17 @@ export function parseLearnerList(text: string): Omit<SetupLearner, 'sex'>[] {
   });
 }
 
-/** Writes the class locally and queues it for the server, in one transaction. Returns the class id. */
-export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date): Promise<string> {
+/** The school (and its current year, if any) an adviser joined with the school code. Kept in db.meta 'join' until setup finishes. */
+export interface JoinSchool { schoolId: string; schoolName: string; yearId: string | null }
+
+/** Writes the class locally and queues it for the server, in one transaction. Returns the class id.
+ *  With `join`, the class goes into that school, and into its existing year when there is one (its holidays exist already). */
+export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date, join?: JoinSchool): Promise<string> {
   const today = todayManila(now);
   const createdAt = now.toISOString();
-  const [schoolId, yearId, classId, planId] = [1, 2, 3, 4].map(() => crypto.randomUUID());
+  const [classId, planId] = [1, 2].map(() => crypto.randomUUID());
+  const schoolId = join?.schoolId ?? crypto.randomUUID();
+  const yearId = join?.yearId ?? crypto.randomUUID();
   const learners: LLearner[] = s.learners.map(l => ({
     id: crypto.randomUUID(), lastName: l.lastName.trim(), firstName: l.firstName.trim(),
     ...(l.middleName?.trim() ? { middleName: l.middleName.trim() } : {}), sex: l.sex,
@@ -91,7 +97,8 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date): Prom
       closes: w.closes, effective_from: w.effectiveFrom } })),
     op({ kind: 'insert', table: 'seat_plans', row: { id: planId, class_id: classId, rows: s.rows, cols: s.cols, effective_from: today } }),
   ];
-  const holidays = holidayRows(yearId, createdAt); // queued after setup_class, which creates the year
+  // queued after setup_class, which creates the year; a joined year already has them
+  const holidays = join?.yearId ? { rows: [], ops: [] } : holidayRows(yearId, createdAt);
 
   await db.transaction('rw', [db.classes, db.learners, db.enrollments, db.tapWindows, db.seatPlans, db.calendarDays, db.outbox, db.meta], async () => {
     await db.classes.put({ id: classId, schoolYearId: yearId, subject: 'Advisory', grade: s.grade, section: s.section, isAdvisory: true, ignoreRepeatMinutes: 3 });
@@ -102,6 +109,7 @@ export async function applySetup(db: KlasilidDb, s: SetupInput, now: Date): Prom
     await db.calendarDays.bulkPut(holidays.rows);
     await db.outbox.bulkAdd([...outbox, ...holidays.ops]);
     await db.meta.put({ key: 'classId', value: classId });
+    await db.meta.delete('join');
   });
   return classId;
 }

@@ -6,8 +6,8 @@ export const SOON = {
   reader: 'Door reader',
 } as const;
 export type SoonRoute = keyof typeof SOON;
-export type Route = 'today' | 'attendance' | 'seat' | 'students' | 'calendar' | 'settings' | 'account' | 'setup' | 'signin' | SoonRoute;
-const ROUTES = ['today', 'attendance', 'seat', 'students', 'calendar', 'settings', 'account', 'setup', 'signin', ...Object.keys(SOON)] as Route[];
+export type Route = 'today' | 'attendance' | 'seat' | 'students' | 'calendar' | 'settings' | 'account' | 'setup' | 'signin' | 'signup' | SoonRoute;
+const ROUTES = ['today', 'attendance', 'seat', 'students', 'calendar', 'settings', 'account', 'setup', 'signin', 'signup', ...Object.keys(SOON)] as Route[];
 
 const parse = (): Route => {
   const r = location.hash.replace(/^#\//, '') as Route;

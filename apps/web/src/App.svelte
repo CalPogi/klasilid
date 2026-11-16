@@ -4,7 +4,7 @@
   import { openDb, pendingCount } from './lib/db';
   import { supabaseRemote } from './lib/remote-supabase';
   import { go, route, SOON, type SoonRoute } from './lib/router';
-  import { dbName, modeFromEnv, signOut, startSession, supabaseAuth, type Session } from './lib/session';
+  import { dbName, modeFromEnv, signIn, signOut, startSession, supabaseAuth, type Session } from './lib/session';
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
   import SeatPlan from './pages/SeatPlan.svelte';
@@ -12,7 +12,9 @@
   import Calendar from './pages/Calendar.svelte';
   import Settings from './pages/Settings.svelte';
   import Account from './pages/Account.svelte';
-  import { DEFAULT_SCHOOL } from './lib/setup';
+  import { DEFAULT_SCHOOL, type JoinSchool } from './lib/setup';
+  import { signUpRemote, type SignupInput, type SignupResult } from './lib/signup';
+  import SignUp from './pages/SignUp.svelte';
   import { applyTheme, savedTheme } from './lib/settings';
   import RegisterCardModal from './components/RegisterCardModal.svelte';
   import type { LLearner } from './lib/db';
@@ -46,6 +48,7 @@
   let classId = $state('');
   let className = $state('');
   let schoolYearId = $state('');
+  let join: JoinSchool | undefined = $state();
   let pending = $state(0);
   let firstSyncFailed = $state(false);
   let registering: { learners: LLearner[]; bulk: boolean } | undefined = $state();
@@ -67,7 +70,23 @@
     classId = cls?.id ?? '';
     className = cls ? `Gr. ${cls.grade} ${cls.section}` : '';
     schoolYearId = cls?.schoolYearId ?? '';
+    join = (await db.meta.get('join'))?.value as JoinSchool | undefined;
     pending = await pendingCount(db);
+  }
+  /** After a school-code sign-up: sign in, remember the school until setup finishes, then open the wizard. */
+  async function signedUp(i: SignupInput, r: Extract<SignupResult, { ok: true }>) {
+    const j: JoinSchool = { schoolId: r.schoolId, schoolName: r.schoolName, yearId: r.yearId };
+    let s: Session;
+    try {
+      s = await signIn(db, auth!, i.username, i.password); // may clear this device's data, so 'join' is written after
+    } catch {
+      // The account exists; let her sign in by hand. ponytail: a different previous owner's data clear would drop 'join' then.
+      await db.meta.put({ key: 'join', value: j });
+      go('signin');
+      return;
+    }
+    await db.meta.put({ key: 'join', value: j });
+    await opened(s);
   }
   async function sync(): Promise<boolean> {
     const r = remote && session && navigator.onLine ? await syncOnce(db, remote, now()) : null;
@@ -113,6 +132,8 @@
 
 {#if !ready}
   <p class="boot">Loading…</p>
+{:else if !session && auth && $route === 'signup'}
+  <SignUp signup={i => signUpRemote(fetch, env.VITE_SUPABASE_URL, i)} onsignedup={signedUp} />
 {:else if !session && auth}
   <SignIn {db} {auth} onsignedin={opened} />
 {:else if session}
@@ -123,7 +144,7 @@
     {#if !classId && firstSyncFailed}
       <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
     {:else if !classId}
-      <Setup {db} {now} onfinish={async () => { await refresh(); go('today'); sync(); }} />
+      <Setup {db} {now} {join} onfinish={async () => { await refresh(); go('today'); sync(); }} />
     {:else if $route === 'setup'}
       <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
