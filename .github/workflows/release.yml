@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version tag to build, like v0.6.0
-        default: v0.0.1
+        description: Version tag to build, like v0.6.0 (never reuse one)
+        required: true
       dry_run:
         description: Build only, don't publish
         type: boolean
@@ -38,6 +38,12 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with: { workspaces: apps/desktop/src-tauri }
       - run: npm ci
+      - name: Supabase settings present (real releases only)
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: node scripts/release.mjs require-vars VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
       - run: node scripts/release.mjs set-version ${{ env.TAG }} apps/desktop/src-tauri/tauri.conf.json
       - name: Build installer
         working-directory: apps/desktop
@@ -80,6 +86,12 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with: { workspaces: apps/desktop/src-tauri }
       - run: npm ci
+      - name: Supabase settings present (real releases only)
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: node scripts/release.mjs require-vars VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
       - run: node scripts/release.mjs set-version ${{ env.TAG }} apps/desktop/src-tauri/tauri.conf.json
       # The Android project is generated fresh on every build; patch-android is the only change made to it.
       - name: Generate the Android project
@@ -89,8 +101,11 @@ jobs:
           npx tauri icon app-icon.svg
       - run: node scripts/release.mjs patch-android apps/desktop/src-tauri/gen/android/app/build.gradle.kts
       - name: Signing key
+        # Through env, never pasted into the script text, so it can't appear in the log.
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/klasilid.p12"
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/klasilid.p12"
           echo "KL_KEYSTORE=$RUNNER_TEMP/klasilid.p12" >> "$GITHUB_ENV"
       - name: Build APK
         working-directory: apps/desktop
@@ -99,9 +114,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           KL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KL_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS }}
       - name: Rename
-        run: cp "$(find apps/desktop/src-tauri/gen/android/app/build/outputs/apk -name '*universal-release*.apk' | head -1)" Klasilid.apk
+        # The exact signed file: fails loudly if signing didn't happen (an -unsigned.apk won't install).
+        run: cp apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk Klasilid.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android

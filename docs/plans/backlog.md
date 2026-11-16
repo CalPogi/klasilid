@@ -56,3 +56,9 @@ Plan 2a (`2026-11-15-plan-2a-teacher-app-core.md`) covers the first five items b
 - A reader moved to another class hands its old taps to the new teacher; scope taps by the device's class at tap time if readers ever move.
 - A learner can't be enrolled with two teachers. Phase 3 subject classes (ECR uploads) need a rule for shared learners.
 - Owner role has no policies for devices or reader requests.
+
+## Plan 6a review (small items)
+- A failed update ("Restart to update" or "Download") gives no message; show "Couldn't update. Check the internet and try again."
+- Release workflow: pass the tag as `"$TAG"` (not `${{ env.TAG }}`) inside scripts; pin third-party actions to commit SHAs; re-running a half-done publish fails with "already exists" (use `gh release upload --clobber`).
+- `versionFromTag` accepts leading zeros (`v01.2.3`); `set-version` prints nothing.
+- Check in the Android app: the attendance CSV export (blob download) and the excuse-photo picker may not work in the Android WebView; if not, route them through Tauri save/share.

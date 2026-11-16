@@ -4,6 +4,7 @@
 //   node scripts/release.mjs manifest <tag> <Klasilid-Setup.exe.sig> <latest.json>
 //   node scripts/release.mjs check-landing <dir>
 //   node scripts/release.mjs patch-android <build.gradle.kts>
+//   node scripts/release.mjs require-vars NAME...   (fails if any env var is empty: no demo-mode releases)
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -53,6 +54,10 @@ export function patchAndroidSigning(gradle) {
   return withSigning.slice(0, afterAndroid) + '\n' + SIGNING + withSigning.slice(afterAndroid).replace(/^\n/, '');
 }
 
+export function missingVars(env, names) {
+  return names.filter(n => !(env[n] ?? '').trim());
+}
+
 function htmlFiles(dir) {
   return readdirSync(dir).flatMap(name => {
     const p = join(dir, name);
@@ -84,8 +89,14 @@ function main([cmd, ...args]) {
   } else if (cmd === 'patch-android') {
     const [file] = args;
     writeFileSync(file, patchAndroidSigning(readFileSync(file, 'utf8')));
+  } else if (cmd === 'require-vars') {
+    const missing = missingVars(process.env, args);
+    if (missing.length) {
+      console.error(`Set these GitHub Actions variables first (a build without them is a demo-only app): ${missing.join(', ')}`);
+      process.exit(1);
+    }
   } else {
-    console.error('Usage: node scripts/release.mjs set-version|manifest|check-landing|patch-android …');
+    console.error('Usage: node scripts/release.mjs set-version|manifest|check-landing|patch-android|require-vars …');
     process.exit(2);
   }
 }

@@ -14,7 +14,16 @@ For the owner. How new versions get built and reach the teacher, where the keys 
 
 ## Releasing a new version
 
-1. Make sure `main` is what you want to ship and the tests pass (`npx vitest run`).
+1. Start from the latest `main`, and make sure the tests pass:
+   ```bash
+   git checkout main
+   ```
+   ```bash
+   git pull
+   ```
+   ```bash
+   npx.cmd vitest run
+   ```
 2. Pick the next version number. Use three numbers, `v0.6.1`; bump the last one for fixes and the middle one for new features.
 3. Tag and push:
    ```bash
@@ -26,7 +35,9 @@ For the owner. How new versions get built and reach the teacher, where the keys 
 4. Watch it on GitHub → Actions → **release**. It takes about 20–30 minutes. `test`, `windows`, `android` and `publish` should all go green.
 5. Check `https://github.com/CalPogi/klasilid-releases/releases/latest`. It should show the new version with three files.
 
-To try a build without publishing, run the workflow by hand: Actions → release → Run workflow, keep **Build only** ticked.
+To try a build without publishing, run the workflow by hand: Actions → release → Run workflow, type a tag, and keep **Build only** ticked.
+
+**If a release fails:** open the failed run and use **Re-run failed jobs**. If it failed during **publish** after the release was half made, delete that release on `klasilid-releases` first, then re-run. Never reuse a version number that reached phones or laptops; use the next one.
 
 The website updates by itself on every push to `main`; it doesn't need a tag.
 
@@ -42,7 +53,7 @@ The website updates by itself on every push to `main`; it doesn't need a tag.
 - `klasilid-release.p12`: signs the Android app;
 - `README.txt`: their passwords.
 
-**If either key is lost, the installed apps can never update again.** She would have to uninstall and reinstall, and unsynced changes on that device would be lost. Copy the folder to a USB drive and keep the passwords in a password manager. Don't email it or put it in a chat or a repo.
+**If either key is lost, the installed apps can never update themselves again.** On Windows she could still install a new `Klasilid-Setup.exe` over the old one and keep her data. On Android she would have to uninstall and reinstall, and changes on that phone that hadn't synced would be lost. Copy the folder to a USB drive and keep the passwords in a password manager. Don't email it or put it in a chat or a repo.
 
 ## Tokens you control
 
@@ -58,6 +69,6 @@ The website updates by itself on every push to `main`; it doesn't need a tag.
 ## What the teacher sees when installing
 
 - **Windows:** "Windows protected your PC" (SmartScreen), because Klasilid isn't signed or in the Microsoft Store yet. **More info → Run anyway**. It installs for her user only, so no admin password is needed.
-- **Android:** the browser asks to allow **Install unknown apps**. Allow it for the browser, then **Install**. Android 7 or newer.
+- **Android:** the browser asks to allow **Install unknown apps**. Allow it for the browser, then **Install**. Google Play Protect may warn about an unrecognized app; choose **Install anyway**. Android 7 or newer.
 
 The landing page explains both.

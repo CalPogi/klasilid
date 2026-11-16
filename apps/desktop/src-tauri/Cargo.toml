@@ -12,13 +12,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-process = "2"
-tauri-plugin-http = "2"
-tauri-plugin-opener = "2"
+# Pinned to the same minor as the locked @tauri-apps npm packages: tauri-cli refuses mismatched pairs.
+# Bump both sides in the same commit.
+tauri = { version = "~2.12", features = [] }
+tauri-plugin-process = "~2.4"
+tauri-plugin-http = "~2.9"
+tauri-plugin-opener = "~2.7"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "~2.14"
 
 [profile.release]
 codegen-units = 1
