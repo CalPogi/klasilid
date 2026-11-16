@@ -1,0 +1,67 @@
+/* Klasilid landing page. Tokens, type and radii are copied from the app's mockup stylesheet
+   (apps/web/src/styles/mockup.css, from docs/mockup/klasilid-mockup-v37.html) so the site reads as the same product. */
+:root {
+  --page: #ECECEF; --bg: #F6F6F8; --surface: #FFFFFF; --surface-2: #F1F1F4;
+  --ink: #16161A; --ink-2: #4A4A52; --muted: #6B6B74; --line: #E4E4E9;
+  --accent: #FF7A1A; --on-accent: #16161A; --accent-soft: #FFEFE3; --accent-ink: #B04A00;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+  --shadow-card: 0 1px 2px rgba(16, 16, 24, .05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0E0E11; --bg: #151519; --surface: #1E1E23; --surface-2: #2A2A31;
+    --ink: #F2F2F5; --ink-2: #C8C8D0; --muted: #9D9DA8; --line: #33333B;
+    --accent-soft: #3B2515; --accent-ink: #FFB27A;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.55;
+}
+a { color: var(--accent-ink); }
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+header.top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
+.logo {
+  width: 36px; height: 36px; border-radius: 11px; background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center; font-weight: 900; font-size: 19px; letter-spacing: -.04em;
+}
+.logo-lg { width: 52px; height: 52px; border-radius: 16px; font-size: 26px; }
+
+.hero { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 40px 32px; box-shadow: var(--shadow-card); }
+.hero h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.1; letter-spacing: -.03em; margin: 18px 0 12px; }
+.hero p.lead { font-size: 18px; color: var(--ink-2); max-width: 620px; margin: 0 0 28px; }
+
+.downloads { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: var(--r-md);
+  font: inherit; font-weight: 700; text-decoration: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.note { color: var(--muted); font-size: 14px; margin: 14px 0 0; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 24px 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; box-shadow: var(--shadow-card); }
+.card h2 { font-size: 17px; margin: 0 0 6px; letter-spacing: -.01em; }
+.card p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+.help { background: var(--accent-soft); border-radius: var(--r-lg); padding: 22px; margin: 0 0 24px; }
+.help h2 { font-size: 17px; margin: 0 0 10px; }
+.help ol { margin: 0 0 12px; padding-left: 20px; }
+.help li { margin: 4px 0; }
+
+footer { color: var(--muted); font-size: 14px; padding: 8px 0 40px; display: flex; flex-wrap: wrap; gap: 16px; }
+
+.doc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 32px; margin-bottom: 24px; }
+.doc h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 6px; }
+.doc h2 { font-size: 18px; margin: 28px 0 8px; }
+.doc p, .doc li { color: var(--ink-2); }
+
+@media (max-width: 560px) {
+  .hero, .doc { padding: 28px 20px; }
+  .btn { width: 100%; justify-content: center; }
+}
