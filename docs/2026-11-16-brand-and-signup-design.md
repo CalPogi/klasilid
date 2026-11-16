@@ -105,3 +105,24 @@ The owner wants the **principal and the other advisers of San Isidro West Centra
 2. **The landing page does not name the school.** Wording like "built with advisers at a public elementary school in Isabela" instead.
 3. **The owner is named as the maker, with his email.** On the canvas both are visible placeholders, `[YOUR NAME]` and `[YOUR EMAIL]`, which the owner fills in during review. The privacy notice gets the same values and can then be published.
 4. **No testimonial** from the owner's mother.
+
+## Approved canvas (2026-11-16)
+
+The owner approved the Claude Design canvas "Klasilid Brand Redesign" (https://claude.ai/artifact/LQUuLx898BG7FU4tqW7bvq). It is now the reference for these screens, and the app must match it exactly.
+- **Tokens unchanged:** orange #FF7A1A, ink #16161A, the app's greys, Plus Jakarta Sans, radii 10/14/20/28. The owner rejected re-themes.
+- **Logo: Ribbon K.** An ink tile (rx 19 on a 64 grid) with an orange vertical stroke and a white chevron woven over it, knocked out with an ink stroke. It replaces the orange "k" tile in the app sidebar, mobile top bar, favicon, app icon and the landing page.
+- **Landing page:**
+  - real screenshots of the app with sample data only (no real names, section or place);
+  - sections: hero; one school morning; the month; the door reader (photo placeholder); for the principal; request band (mailto); get the app; questions; footer;
+  - the phone screenshot overlays the laptop one at 22% of its width.
+- **Sign-in and sign-up:** an Instagram-style layout (two phones with real screens beside a bordered form box, then a second box linking the other page, then "Get the app") with UI/UX rules applied:
+  - visible labels and 48 px fields at 16 px text;
+  - 44 px minimum targets;
+  - a show/hide password button;
+  - correct autocomplete hints;
+  - errors next to their fields, plus a linked summary on sign-up;
+  - a busy state on submit.
+  - On narrow screens the phones are hidden and the box border dropped.
+- **No role toggle on sign-in.** Everyone signs in the same way.
+- **Optional reset email on sign-up: deferred (builder's call).** Changing the account email today switches sign-in from username to that email, and sending resets to a separate address needs an email service. Version 1 has no email field. Advisers who forget their password ask the Klasilid admin (the owner resets it in the Supabase dashboard). The existing Account-page email change is a backlog item.
+- **Privacy notice:** still held back (owner skipped it). The landing footer has no privacy link until it is filled in.
