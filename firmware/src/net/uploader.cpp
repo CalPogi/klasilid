@@ -43,9 +43,12 @@ void uploader::tick() {
   const int code = len ? http::request(cfg, "POST", "/functions/v1/tap", body, len, resp) : -1;
   if (code == 200) {
     const size_t m = parseAck(resp.c_str(), seqs, kBatch);
-    xSemaphoreTake(logMutex, portMAX_DELAY);
-    tapLog.markSent(seqs, m);
-    xSemaphoreGive(logMutex);
+    // One flash write per seq; release the log between them so a tap at the door waits for one write at most.
+    for (size_t i = 0; i < m; i++) {
+      xSemaphoreTake(logMutex, portMAX_DELAY);
+      tapLog.markSent(&seqs[i], 1);
+      xSemaphoreGive(logMutex);
+    }
     failures = 0;
     keyRejected = false;
     lastOkUnix = static_cast<uint32_t>(time(nullptr));

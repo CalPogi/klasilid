@@ -17,7 +17,7 @@
 #include "net/wifi.h"
 #include "roster.h"
 #include "rostercache.h"
-#include "store/littlefs_storage.h"
+#include "littlefs_storage.h"
 #include "timefmt.h"
 
 static constexpr uint32_t kCapacity = 8192;  // ≥ 30 school days × 50 learners × 4 taps (spec §8)
