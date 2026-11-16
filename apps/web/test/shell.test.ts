@@ -20,6 +20,15 @@ it('has every sidebar entry from the mockup and marks the current one', () => {
   expect(screen.getByText('Advisory · Gr. 6 Diamond', { selector: '.glabel' })).toBeTruthy();
 });
 
+it('shows the Ribbon K logo, hidden from screen readers, next to the name', () => {
+  render(Shell, props());
+  const brand = document.querySelector('.brand')!;
+  expect(brand.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+  expect(brand.querySelector('.logo')).toBeNull();
+  expect(brand.textContent?.trim()).toBe('Klasilid');
+  expect(document.querySelector('.wtop svg[aria-hidden="true"]')).toBeTruthy();
+});
+
 it('My classes starts closed and opens', async () => {
   render(Shell, props());
   const toggle = screen.getByRole('button', { name: /My classes/ });

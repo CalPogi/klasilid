@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import type { Route } from '../lib/router';
   import Icon from './Icon.svelte';
+  import Logo from './Logo.svelte';
 
   // Markup and class names follow the mockup's web sidebar (docs/mockup, "Web, teacher on a laptop").
   let { current, className, userName = '', classes = [], onsignout, children }: {
@@ -21,7 +22,7 @@
 
 <div class="app full" class:nav-open={navOpen}>
   <aside class="side">
-    <div class="brand"><span class="logo" style="font-weight:900;font-size:19px;letter-spacing:-.04em">k</span>Klasilid</div>
+    <div class="brand"><Logo size={36} />Klasilid</div>
     <nav aria-label="Main">
       <a href="#/today" class:on={current === 'today'} aria-current={on('today')}><Icon name="home" />Today</a>
       <div class="glabel"><i style="background:var(--accent)"></i>Advisory · {className}</div>
@@ -58,7 +59,7 @@
   <section class="main">
     <div class="wtop">
       <button class="iconbtn" type="button" aria-label="Open menu" aria-expanded={navOpen} onclick={() => (navOpen = !navOpen)}><Icon name="menu" cls="ico" /></button>
-      <b><span class="logo">k</span>Klasilid</b>
+      <b><Logo size={30} />Klasilid</b>
     </div>
     {@render children?.()}
   </section>
