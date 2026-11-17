@@ -1,7 +1,8 @@
-import { hm, validateWindows } from '@klasilid/core';
-import { dayLetter, todayManila, type ClassDay } from './attendance';
+import { hm, validateWindows, windowsForDate, type IsoDate } from '@klasilid/core';
+import { classDay, dayLetter, monthsWithAttendance, schoolDaysInMonth, todayManila, type ClassDay } from './attendance';
 import type { KlasilidDb, LTapWindow, OutboxOp } from './db';
-import type { SetupWindow } from './setup';
+import { fmtMonth } from './format';
+import { DEFAULT_WINDOWS, type SetupWindow } from './setup';
 
 const queue = (db: KlasilidDb, op: OutboxOp) => db.outbox.add({ createdAt: new Date().toISOString(), op });
 
@@ -68,4 +69,36 @@ export function attendanceCsv(days: ClassDay[]): string {
     lines.push([name, ...letters.map(l => (l === 'N' ? '' : l)), letters.filter(l => l === 'A').length, letters.filter(l => l === 'L').length].map(csvCell).join(','));
   }
   return lines.join('\r\n');
+}
+
+/** What the Settings screens (laptop and phone) start from. */
+export interface SettingsState {
+  windows: SetupWindow[]; review: boolean; repeat: 1 | 3 | 5 | 10; language: 'en' | 'fil'; alerts: Record<string, boolean>; months: string[];
+}
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+export async function loadSettings(db: KlasilidDb, classId: string, today: IsoDate): Promise<SettingsState> {
+  const cls = await db.classes.get(classId);
+  const current = windowsForDate(await db.tapWindows.where('classId').equals(classId).toArray(), today);
+  return {
+    windows: current.length === 4
+      ? current.map(w => ({ session: w.session, kind: w.kind, opens: hhmm(w.opens), lateAfter: w.lateAfter == null ? null : hhmm(w.lateAfter), closes: hhmm(w.closes) }))
+      : DEFAULT_WINDOWS.map(w => ({ ...w })),
+    review: cls?.reviewOutside ?? true,
+    repeat: (cls?.ignoreRepeatMinutes ?? 3) as SettingsState['repeat'],
+    language: ((await db.prefs.get('language'))?.value as 'en' | 'fil') ?? 'en',
+    alerts: { readerOffline: true, absent2: true, parentApp: true, ...(((await db.prefs.get('alerts'))?.value as Record<string, boolean>) ?? {}) },
+    months: await monthsWithAttendance(db, classId, today),
+  };
+}
+
+/** Saves a month's attendance grid as 'Attendance <Month YYYY>.csv'. */
+export async function downloadAttendance(db: KlasilidDb, classId: string, month: string, today: IsoDate, now: Date): Promise<void> {
+  const days = (await schoolDaysInMonth(db, classId, month, today)).reverse();
+  const csv = attendanceCsv(await Promise.all(days.map(d => classDay(db, classId, d, now))));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `Attendance ${fmtMonth(month)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }

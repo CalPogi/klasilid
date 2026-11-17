@@ -2,7 +2,7 @@
   import DayMenu from '../components/DayMenu.svelte';
   import Icon from '../components/Icon.svelte';
   import { todayManila } from '../lib/attendance';
-  import { KIND_LABEL, monthCells, setDayType, type DayCell, type DayKind } from '../lib/calendar';
+  import { calendarStats, KIND_LABEL, monthCells, setDayType, specialGroups, type DayCell, type DayKind } from '../lib/calendar';
   import type { KlasilidDb } from '../lib/db';
   import { fmtMonth } from '../lib/format';
   import { SCHOOL_YEARS } from '../lib/setup';
@@ -31,24 +31,8 @@
   $effect(() => { month; load(); });
 
   const lead = $derived(cells.length ? (new Date(cells[0].date + 'T00:00:00Z').getUTCDay() + 6) % 7 : 0);
-  const weekdays = $derived(cells.filter(c => !c.weekend));
-  const stats = $derived({
-    school: weekdays.filter(c => c.kind !== 'holiday' && c.kind !== 'suspension').length,
-    holiday: weekdays.filter(c => c.kind === 'holiday').length, half: weekdays.filter(c => c.kind === 'half').length,
-    suspension: weekdays.filter(c => c.kind === 'suspension').length,
-  });
-  /** Back-to-back days with the same kind and name become one row (a Friday-to-Monday run too). */
-  const groups = $derived.by(() => {
-    const out: { start: DayCell; end: DayCell; days: number }[] = [];
-    for (const c of weekdays.filter(c => c.kind)) {
-      const g = out[out.length - 1];
-      const gap = g ? (Date.parse(c.date) - Date.parse(g.end.date)) / 86_400_000 : 0;
-      const wd = new Date(c.date + 'T00:00:00Z').getUTCDay();
-      if (g && g.end.kind === c.kind && g.end.name === c.name && (gap === 1 || (gap === 3 && wd === 1))) { g.end = c; g.days++; }
-      else out.push({ start: c, end: c, days: 1 });
-    }
-    return out;
-  });
+  const stats = $derived(calendarStats(cells));
+  const groups = $derived(specialGroups(cells));
   const label = (c: DayCell) => {
     const dm = `${MN(month)} ${Number(c.date.slice(8))}`;
     return c.kind ? `${dm}, ${KIND_LABEL[c.kind]}${c.name && c.name !== KIND_LABEL[c.kind] ? ', ' + c.name : ''}` : `${dm}, school day${c.isToday ? `, today, ${c.inCount ?? 0} in` : ''}`;

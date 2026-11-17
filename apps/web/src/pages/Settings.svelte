@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { windowLabel, windowsForDate } from '@klasilid/core';
-  import { classDay, monthsWithAttendance, schoolDaysInMonth, todayManila } from '../lib/attendance';
+  import { windowLabel } from '@klasilid/core';
+  import { todayManila } from '../lib/attendance';
   import type { KlasilidDb } from '../lib/db';
   import { fmtMonth } from '../lib/format';
-  import { applyTheme, attendanceCsv, saveTapWindows, savedTheme, setIgnoreRepeat, setLanguage, setReviewOutside, type Theme } from '../lib/settings';
+  import { applyTheme, downloadAttendance, loadSettings, saveTapWindows, savedTheme, setIgnoreRepeat, setLanguage, setReviewOutside, type Theme } from '../lib/settings';
   import { DEFAULT_WINDOWS, TIMES, timeLabel, type SetupWindow } from '../lib/setup';
 
   // Markup follows the mockup's Settings page, split into its four tabs (.ctabs.stabs / .spanel).
@@ -23,21 +23,13 @@
   let months: string[] = $state([]);
   let month = $state('');
   const today = $derived(todayManila(now()));
-  const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const options = (v: string | null) => (v && !TIMES.includes(v) ? [...TIMES, v].sort() : TIMES);
 
   $effect(() => {
-    (async () => {
-      const cls = await db.classes.get(classId);
-      review = cls?.reviewOutside ?? true;
-      repeat = cls?.ignoreRepeatMinutes ?? 3;
-      const current = windowsForDate(await db.tapWindows.where('classId').equals(classId).toArray(), today);
-      if (current.length === 4) windows = current.map(w => ({ session: w.session, kind: w.kind, opens: hhmm(w.opens), lateAfter: w.lateAfter == null ? null : hhmm(w.lateAfter), closes: hhmm(w.closes) }));
-      language = ((await db.prefs.get('language'))?.value as 'en' | 'fil') ?? 'en';
-      alerts = { ...alerts, ...(((await db.prefs.get('alerts'))?.value as Record<string, boolean>) ?? {}) };
-      months = await monthsWithAttendance(db, classId, today);
+    loadSettings(db, classId, today).then(st => {
+      ({ windows, review, repeat, language, alerts, months } = st);
       month ||= months[0] ?? today.slice(0, 7);
-    })();
+    });
   });
 
   async function saveTimes() {
@@ -49,15 +41,7 @@
     alerts[k] = !alerts[k];
     await db.prefs.put({ key: 'alerts', value: $state.snapshot(alerts) });
   }
-  async function download() {
-    const days = (await schoolDaysInMonth(db, classId, month, today)).reverse();
-    const csv = attendanceCsv(await Promise.all(days.map(d => classDay(db, classId, d, now()))));
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `Attendance ${fmtMonth(month)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
+  const download = () => downloadAttendance(db, classId, month, today, now());
 </script>
 
 <div class="page on" data-page="settings">
