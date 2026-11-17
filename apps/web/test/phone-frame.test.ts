@@ -6,14 +6,8 @@ import Modal from '../src/components/Modal.svelte';
 import { openDb } from '../src/lib/db';
 import { PHONE_QUERY } from '../src/lib/layout';
 import { laptopRoute, param, routeOf } from '../src/lib/router';
+import { mockMatchMedia } from './phone-helpers';
 
-/** Stubs matchMedia so the phone store sees a phone (true) or a laptop (false). */
-export function mockMatchMedia(matches: boolean) {
-  window.matchMedia = ((media: string) => ({
-    matches, media, onchange: null,
-    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
-  })) as unknown as typeof window.matchMedia;
-}
 const demoApp = () => render(App, { deps: { db: openDb('t-' + crypto.randomUUID()), mode: 'demo', auth: null, remote: null } });
 
 afterEach(() => { location.hash = ''; });

@@ -150,7 +150,8 @@
 {:else if session}
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
   {#if $phone}
-    <PhoneApp current={$route} onsignout={auth ? leave : undefined} fallback={pages} />
+    <PhoneApp current={$route} onsignout={auth ? leave : undefined} fallback={pages}
+      ctx={{ db, classId, className, schoolYearId, session, mode, auth, now, register, pageKey }} />
   {:else}
     <Shell current={laptopRoute($route)} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
       classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
