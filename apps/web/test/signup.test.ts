@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import App from '../src/App.svelte';
 import { openDb } from '../src/lib/db';
 import { applySetup, claimSection, DEFAULT_WINDOWS, type SetupInput } from '../src/lib/setup';
-import { checkSignup, OFFLINE, signUpRemote, type SignupInput } from '../src/lib/signup';
+import { checkSignup, OFFLINE, OLD_LINK, signUpRemote, type SignupInput } from '../src/lib/signup';
+import { inviteOf, routeOf } from '../src/lib/router';
 import { signIn, type AuthPort } from '../src/lib/session';
 import Setup from '../src/pages/Setup.svelte';
 import SignUp from '../src/pages/SignUp.svelte';
@@ -52,51 +53,92 @@ describe('signUpRemote', () => {
 
 describe('sign-up page', () => {
   const fill = async (v: Partial<SignupInput>) => {
-    const ids = { code: 'School code', displayName: 'Your name in Klasilid', username: 'Username', password: 'Password' } as const;
+    const ids = { displayName: 'Your name in Klasilid', username: 'Username', password: 'Password' } as const;
     for (const [k, label] of Object.entries(ids)) {
       const value = (v as Record<string, string>)[k];
       if (value !== undefined) await fireEvent.input(screen.getByLabelText(label), { target: { value } });
     }
   };
+  const open = (signup = vi.fn(), onsignedup = vi.fn(), invite = ok.code) => render(SignUp, { invite, signup, onsignedup });
+
+  it('has no school code field: the code comes from the invite link', () => {
+    open();
+    expect(screen.queryByLabelText('School code')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Create your adviser account' })).toBeTruthy();
+  });
+
+  it('without an invite link it asks for one and shows no form', () => {
+    open(vi.fn(), vi.fn(), '');
+    expect(screen.getByRole('heading', { name: 'Ask for your sign-up link' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull();
+  });
 
   it('a failed submit lists each problem as a link to its field and focuses the summary', async () => {
     const signup = vi.fn();
-    render(SignUp, { signup, onsignedup: vi.fn() });
-    await fill({ code: 'abc', displayName: "Ma'am Santos", username: 'maria.santos', password: 'short' });
+    open(signup);
+    await fill({ displayName: "Ma'am Santos", username: 'ab', password: 'short' });
     await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     const summary = screen.getByRole('alert');
     expect(summary.textContent).toContain('Fix 2 things to continue');
     const links = [...summary.querySelectorAll('a')].map(a => [a.getAttribute('href'), a.textContent]);
-    expect(links).toEqual([['#suCode', 'The school code looks like XXXX-XXXX'], ['#suPass', 'Use at least 8 characters']]);
+    expect(links).toEqual([['#suUser', 'Use 3–30 small letters, numbers, dots, dashes or underscores'], ['#suPass', 'Use at least 8 characters']]);
     expect(document.activeElement).toBe(summary);
-    expect(screen.getByLabelText('School code').getAttribute('aria-invalid')).toBe('true');
-    expect(screen.getByLabelText('Username').getAttribute('aria-invalid')).toBe('false');
+    expect(screen.getByLabelText('Username').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText('Your name in Klasilid').getAttribute('aria-invalid')).toBe('false');
     expect(signup).not.toHaveBeenCalled();
     expect((screen.getByLabelText('Your name in Klasilid') as HTMLInputElement).value).toBe("Ma'am Santos");
+  });
+
+  it('an invite the server no longer accepts says to ask for a new link', async () => {
+    open(vi.fn().mockResolvedValue({ ok: false, field: 'code', message: 'That school code isn’t right. Check it with the Klasilid admin.' }));
+    await fill(ok);
+    await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(OLD_LINK);
+  });
+
+  it('a broken invite link (not a code at all) gets the same message without calling the server', async () => {
+    const signup = vi.fn();
+    open(signup, vi.fn(), 'abc');
+    await fill(ok);
+    await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(screen.getByRole('alert').textContent).toContain(OLD_LINK);
+    expect(signup).not.toHaveBeenCalled();
   });
 
   it('shows a server error on its field and keeps what was typed when offline', async () => {
     const signup = vi.fn()
       .mockResolvedValueOnce({ ok: false, field: 'username', message: 'That username is taken' })
       .mockResolvedValueOnce({ ok: false, message: OFFLINE });
-    render(SignUp, { signup, onsignedup: vi.fn() });
+    open(signup);
     await fill(ok);
     await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     expect((await screen.findByRole('link', { name: 'That username is taken' })).getAttribute('href')).toBe('#suUser');
     expect(screen.getByLabelText('Username').getAttribute('aria-describedby')).toBe('suUserMsg');
     await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     expect((await screen.findByRole('alert')).textContent).toContain(OFFLINE);
-    expect((screen.getByLabelText('School code') as HTMLInputElement).value).toBe(ok.code);
+    expect((screen.getByLabelText('Username') as HTMLInputElement).value).toBe(ok.username);
     expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe(ok.password);
   });
 
-  it('hands the result to the app after a successful sign-up', async () => {
+  it('hands the result to the app after a successful sign-up and drops the invite from the address bar', async () => {
+    location.hash = `#/signup?invite=${ok.code}`;
     const r = { ok: true, schoolId: 's', schoolName: 'Sample School', yearId: null };
     const onsignedup = vi.fn();
-    render(SignUp, { signup: vi.fn().mockResolvedValue(r), onsignedup });
+    open(vi.fn().mockResolvedValue(r), onsignedup);
     await fill(ok);
     await fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await vi.waitFor(() => expect(onsignedup).toHaveBeenCalledWith(ok, r));
+    expect(location.hash).not.toContain('invite');
+    location.hash = '';
+  });
+});
+
+describe('invite links', () => {
+  it('route and invite come from #/signup?invite=…', () => {
+    expect(routeOf('#/signup?invite=Y3RS-MWTL')).toBe('signup');
+    expect(inviteOf('#/signup?invite=Y3RS-MWTL')).toBe('Y3RS-MWTL');
+    expect(inviteOf('#/signup')).toBe('');
+    expect(routeOf('#/today')).toBe('today');
   });
 });
 

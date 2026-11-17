@@ -126,3 +126,13 @@ The owner approved the Claude Design canvas "Klasilid Brand Redesign" (https://c
 - **No role toggle on sign-in.** Everyone signs in the same way.
 - **Optional reset email on sign-up: deferred (builder's call).** Changing the account email today switches sign-in from username to that email, and sending resets to a separate address needs an email service. Version 1 has no email field. Advisers who forget their password ask the Klasilid admin (the owner resets it in the Supabase dashboard). The existing Account-page email change is a backlog item.
 - **Privacy notice:** still held back (owner skipped it). The landing footer has no privacy link until it is filled in.
+
+## Change after release step 5 (2026-11-17): invite link instead of a typed code
+
+The owner decided advisers should not type the school code. Chosen over open sign-up with owner approval, and over no check at all (anyone could claim a section).
+
+- The admin sends each adviser a link: `https://klasilid.pages.dev/app/#/signup?invite=XXXX-XXXX`. The code travels in the link; the backend, the hash-only storage and the lockout are unchanged.
+- The sign-up form has three fields: your name, username, password. Opened without a link, the page says "Ask for your sign-up link".
+- Any problem with the code (refused by the server, or not a code at all) shows "This sign-up link doesn't work anymore. Ask the Klasilid admin for a new one."
+- After a successful sign-up the code is removed from the address bar and history.
+- Canvas boards "Sign up, laptop" and "Sign up, phone" were redrawn for this and approved.

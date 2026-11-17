@@ -3,7 +3,7 @@
   import Shell from './components/Shell.svelte';
   import { openDb, pendingCount } from './lib/db';
   import { supabaseRemote } from './lib/remote-supabase';
-  import { go, route, SOON, type SoonRoute } from './lib/router';
+  import { go, inviteOf, route, SOON, type SoonRoute } from './lib/router';
   import { dbName, modeFromEnv, signIn, signOut, startSession, supabaseAuth, type Session } from './lib/session';
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
@@ -142,7 +142,7 @@
 {#if !ready}
   <p class="boot">Loading…</p>
 {:else if !session && auth && $route === 'signup'}
-  <SignUp signup={i => signUpRemote(fetch, env.VITE_SUPABASE_URL, i)} onsignedup={signedUp} />
+  <SignUp invite={inviteOf(location.hash)} signup={i => signUpRemote(fetch, env.VITE_SUPABASE_URL, i)} onsignedup={signedUp} />
 {:else if !session && auth}
   <SignIn {db} {auth} onsignedin={opened} />
 {:else if session}

@@ -9,6 +9,8 @@ export type SignupResult =
 
 export const RESERVED = ['admin', 'administrator', 'klasilid', 'support', 'help', 'root', 'owner', 'teacher'];
 export const OFFLINE = 'You need internet to create an account.';
+/** The code comes from the adviser's invite link; any problem with it means the link is old or broken. */
+export const OLD_LINK = 'This sign-up link doesn’t work anymore. Ask the Klasilid admin for a new one.';
 export const normalCode = (c: string) => c.toUpperCase().replace(/[\s-]/g, '');
 export const normalUser = (u: string) => u.trim().toLowerCase();
 
