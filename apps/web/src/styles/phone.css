@@ -1,0 +1,11 @@
+/* The phone app (plan 6d). The mockup's phone CSS in mockup.css is written for a drawn phone (.phone);
+   these rules turn that frame into the real screen and keep content clear of Android's bars. */
+.phone.app-phone{width:100%;height:100dvh;border:0;border-radius:0;box-shadow:none}
+.app-phone .scr{top:env(safe-area-inset-top);padding-top:calc(var(--s2) + 4px)}
+.app-phone .fnav{bottom:calc(12px + env(safe-area-inset-bottom))}
+.app-phone .homebar{display:none}
+.app-phone .m-ed-actions{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+/* Sheets open from anywhere (some modals live outside the frame), so they are fixed to the screen. */
+.scrim{position:fixed}
+.sheet{position:fixed;max-height:86dvh;overflow:auto;padding-bottom:calc(34px + env(safe-area-inset-bottom))}
+.sheet .fgrid{grid-template-columns:1fr}

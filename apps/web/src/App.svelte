@@ -3,7 +3,9 @@
   import Shell from './components/Shell.svelte';
   import { openDb, pendingCount } from './lib/db';
   import { supabaseRemote } from './lib/remote-supabase';
-  import { go, inviteOf, route, SOON, type SoonRoute } from './lib/router';
+  import { go, inviteOf, laptopRoute, route, SOON, type Route, type SoonRoute } from './lib/router';
+  import { phone } from './lib/layout';
+  import PhoneApp from './pages/phone/PhoneApp.svelte';
   import { dbName, modeFromEnv, signIn, signOut, startSession, supabaseAuth, type Session } from './lib/session';
   import { syncOnce } from './lib/sync';
   import Attendance from './pages/Attendance.svelte';
@@ -147,42 +149,53 @@
   <SignIn {db} {auth} onsignedin={opened} />
 {:else if session}
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
-  <Shell current={$route} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
-    classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
-    {#if update}<UpdateBanner {update} />{/if}
-    {#if !classId && firstSyncFailed}
-      <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
-    {:else if !classId}
-      <Setup {db} {now} {join} {claim} {refused} onfinish={async () => { await refresh(); go('today'); sync(); }} />
-    {:else if $route === 'setup'}
-      <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
-        <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
-    {:else if $route in SOON}
-      <Soon title={SOON[$route as SoonRoute]} />
-    {:else if $route === 'account'}
-      <Account {db} {auth} {session} school={DEFAULT_SCHOOL} onrenamed={name => { if (session) session = { ...session, displayName: name }; }} />
-    {:else if $route === 'settings'}
-      <Settings {db} {classId} userId={session.userId} {now} onregister={() => register({ bulk: true })} />
-    {:else if $route === 'calendar'}
-      <Calendar {db} {classId} {schoolYearId} {now} />
-    {:else if $route === 'students'}
-      {#key pageKey}<Students {db} {classId} teacherId={session.userId} {now} {mode} onregister={register} />{/key}
-    {:else if $route === 'seat'}
-      <SeatPlan {db} {classId} teacherId={session.userId} {now} />
-    {:else if $route === 'attendance'}
-      <Attendance {db} {classId} teacherId={session.userId} {now} />
-    {:else}
-      {#key pageKey}<Today {db} {classId} teacherId={session.userId} displayName={session.displayName} {now} onregister={() => register({ bulk: true })} />{/key}
-    {/if}
-  </Shell>
+  {#if $phone}
+    <PhoneApp current={$route} onsignout={auth ? leave : undefined} fallback={pages} />
+  {:else}
+    <Shell current={laptopRoute($route)} {className} userName={session.displayName} onsignout={auth ? leave : undefined}
+      classes={classId ? [{ label: `Advisory · ${className}`, advisory: true }] : []}>
+      {@render pages(laptopRoute($route))}
+    </Shell>
+  {/if}
   {#if registering}
     <RegisterCardModal {db} learners={registering.learners} bulk={registering.bulk} {mode} {now} poll={async () => { await sync(); }}
       onclose={() => { registering = undefined; pageKey++; }} />
   {/if}
 {/if}
 
+{#snippet pages(r: Route)}
+  {#if session}
+    {#if update}<UpdateBanner {update} />{/if}
+    {#if !classId && firstSyncFailed}
+      <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
+    {:else if !classId}
+      <Setup {db} {now} {join} {claim} {refused} onfinish={async () => { await refresh(); go('today'); sync(); }} />
+    {:else if r === 'setup'}
+      <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
+        <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>
+    {:else if r in SOON}
+      <Soon title={SOON[r as SoonRoute]} />
+    {:else if r === 'account'}
+      <Account {db} {auth} {session} school={DEFAULT_SCHOOL} onrenamed={name => { if (session) session = { ...session, displayName: name }; }} />
+    {:else if r === 'settings'}
+      <Settings {db} {classId} userId={session.userId} {now} onregister={() => register({ bulk: true })} />
+    {:else if r === 'calendar'}
+      <Calendar {db} {classId} {schoolYearId} {now} />
+    {:else if r === 'students'}
+      {#key pageKey}<Students {db} {classId} teacherId={session.userId} {now} {mode} onregister={register} />{/key}
+    {:else if r === 'seat'}
+      <SeatPlan {db} {classId} teacherId={session.userId} {now} />
+    {:else if r === 'attendance'}
+      <Attendance {db} {classId} teacherId={session.userId} {now} />
+    {:else}
+      {#key pageKey}<Today {db} {classId} teacherId={session.userId} displayName={session.displayName} {now} onregister={() => register({ bulk: true })} />{/key}
+    {/if}
+  {/if}
+{/snippet}
+
 <style>
   .boot { padding: 40px; color: var(--muted); }
   .demo { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 40; pointer-events: none; white-space: nowrap; background: var(--dark); color: var(--on-dark); font-size: 12px;
     font-weight: 700; padding: 3px 12px; border-radius: 10px 10px 0 0; }
+  @media (max-width: 760px), (max-height: 500px) { .demo { bottom: auto; top: 0; border-radius: 0 0 10px 10px; } }
 </style>
