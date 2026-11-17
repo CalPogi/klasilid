@@ -6,6 +6,8 @@
   import { hash, laptopRoute, param, SOON, type Route, type SoonRoute } from '../../lib/router';
   import AttendancePhone from './AttendancePhone.svelte';
   import SeatPlanPhone from './SeatPlanPhone.svelte';
+  import StudentPhone from './StudentPhone.svelte';
+  import StudentsPhone from './StudentsPhone.svelte';
   import type { AuthPort, Mode, Session } from '../../lib/session';
   import HomePhone from './HomePhone.svelte';
   import SoonPhone from './SoonPhone.svelte';
@@ -36,6 +38,10 @@
         <SeatPlanPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} date={current === 'day' ? param('date') : undefined} />
       {:else if current === 'attendance'}
         <AttendancePhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
+      {:else if current === 'students'}
+        <StudentsPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} mode={ctx.mode} onregister={ctx.register} />
+      {:else if current === 'student'}
+        <StudentPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} mode={ctx.mode} id={param('id')} onregister={ctx.register} />
       {:else}
         {@render fallback(laptopRoute(current))}
       {/if}
