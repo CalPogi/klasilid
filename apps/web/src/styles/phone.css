@@ -5,6 +5,10 @@
 .app-phone .fnav{bottom:calc(12px + env(safe-area-inset-bottom))}
 .app-phone .homebar{display:none}
 .app-phone .m-ed-actions{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom))}
+/* mockup.css's (max-width:400px) rules are for the mockup page seen on a narrow screen, not for the phone it draws;
+   on a real phone the drawn phone's layout is the approved one. */
+.app-phone .mwin .g{grid-template-columns:1fr 1fr!important}
+.app-phone .mwin .g>div:nth-child(2):not(:last-child){order:3;grid-column:1/-1}
 /* Sheets open from anywhere (some modals live outside the frame), so they are fixed to the screen. */
 .scrim{position:fixed}
 .sheet{position:fixed;max-height:86dvh;overflow:auto;padding-bottom:calc(34px + env(safe-area-inset-bottom))}

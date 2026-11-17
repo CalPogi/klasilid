@@ -10,14 +10,17 @@
   import StudentPhone from './StudentPhone.svelte';
   import StudentsPhone from './StudentsPhone.svelte';
   import type { AuthPort, Mode, Session } from '../../lib/session';
+  import CalendarPhone from './CalendarPhone.svelte';
   import HomePhone from './HomePhone.svelte';
+  import ProfilePhone from './ProfilePhone.svelte';
+  import SettingsPhone from './SettingsPhone.svelte';
   import SoonPhone from './SoonPhone.svelte';
 
   // The phone app: the bottom-bar frame and one phone screen per route. A route without a phone screen
   // shows its laptop page (`fallback`) inside the screen area; so do setup and the "connect once" message.
   export interface PhoneCtx {
     db: KlasilidDb; classId: string; className: string; schoolYearId: string; session: Session; mode: Mode; auth: AuthPort | null;
-    now: () => Date; register: (t: { learner?: LLearner; bulk?: boolean }) => void; pageKey: number;
+    now: () => Date; register: (t: { learner?: LLearner; bulk?: boolean }) => void; pageKey: number; rename: (name: string) => void;
   }
   let { current, onsignout, fallback, ctx }: { current: Route; onsignout?: () => void; fallback: Snippet<[Route]>; ctx: PhoneCtx } = $props();
 </script>
@@ -39,6 +42,12 @@
         <SeatPlanPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} date={current === 'day' ? param('date') : undefined} />
       {:else if current === 'attendance'}
         <AttendancePhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
+      {:else if current === 'settings'}
+        <SettingsPhone db={ctx.db} classId={ctx.classId} userId={ctx.session.userId} now={ctx.now} onregister={() => ctx.register({ bulk: true })} />
+      {:else if current === 'account'}
+        <ProfilePhone db={ctx.db} auth={ctx.auth} session={ctx.session} className={ctx.className} onrenamed={ctx.rename} />
+      {:else if current === 'calendar'}
+        <CalendarPhone db={ctx.db} classId={ctx.classId} schoolYearId={ctx.schoolYearId} now={ctx.now} />
       {:else if current === 'seat-edit'}
         <SeatEditPhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
       {:else if current === 'students'}

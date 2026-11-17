@@ -10,6 +10,8 @@
   const ADVISORY: Route[] = ['seat', 'attendance', 'students', 'grades', 'student', 'day', 'seat-edit'];
   const TABS: [Route, string, string][] = [['today', 'home', 'Home'], ['seat', 'users', 'Advisory'], ['classes', 'book', 'Classes'], ['reports', 'file', 'Reports']];
   const on = (r: Route) => (r === 'seat' ? ADVISORY.includes(current) : r === current);
+  /** Screens reached from the menu light up Menu, as in the mockup. */
+  const inMenu = $derived((['account', 'settings', 'calendar', 'reader'] as Route[]).includes(current));
   let menu = $state(false);
   $effect(() => { if (menu) return closeOnBack(() => (menu = false)); });
   // Replacing the menu's history entry means back from the new screen returns to the old one, not to the menu.
@@ -33,7 +35,7 @@
       <button type="button" class:on={on(r)} aria-current={on(r) ? 'page' : undefined} aria-label={label} onclick={() => (location.hash = '#/' + r)}>
         <Icon name={icon} cls="ico" /><span>{label}</span></button>
     {/each}
-    <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label="Menu" onclick={() => (menu = !menu)}>
+    <button type="button" class:on={inMenu} aria-haspopup="menu" aria-expanded={menu} aria-label="Menu" onclick={() => (menu = !menu)}>
       <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span>Menu</span></button>
   </nav>
   {/if}

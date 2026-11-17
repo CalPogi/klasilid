@@ -28,7 +28,9 @@ export const PH_HOLIDAYS: { date: IsoDate; name: string }[] = [
 ];
 
 export type DayKind = 'school' | 'half' | 'suspension' | 'holiday';
-export const KIND_LABEL: Record<Exclude<DayKind, 'school'>, string> = { holiday: 'Holiday', half: 'Half day', suspension: 'Suspended' };
+/** The day menu's choices: kind, label, the mockup's legend dot class. */
+export const DAY_OPTIONS: [DayKind, string, string][] = [['school', 'School day', 'dot-school'], ['half', 'Half day', 'dot-half'], ['suspension', 'Class suspension', 'dot-sus'], ['holiday', 'Holiday', 'dot-hol']];
+export const KIND_LABEL: Record<Exclude<DayKind, 'school'>, string> ={ holiday: 'Holiday', half: 'Half day', suspension: 'Suspended' };
 const DEFAULT_NAME: Record<Exclude<DayKind, 'school'>, string> = { holiday: 'Holiday', half: 'Half day', suspension: 'Class suspension' };
 
 /** Only the school year's admin can change the calendar on the server; a refusal lands in the rejected list (plan 2a). */
@@ -59,6 +61,29 @@ export function holidayRows(schoolYearId: string, createdAt: string): { rows: LC
 }
 
 export interface DayCell { date: IsoDate; weekend: boolean; kind: Exclude<DayKind, 'school'> | null; name?: string; pct?: number; inCount?: number; isToday: boolean; past: boolean }
+
+/** The month's counts shown above the calendar (weekdays only). */
+export function calendarStats(cells: DayCell[]): { school: number; holiday: number; half: number; suspension: number } {
+  const wd = cells.filter(c => !c.weekend);
+  return {
+    school: wd.filter(c => c.kind !== 'holiday' && c.kind !== 'suspension').length,
+    holiday: wd.filter(c => c.kind === 'holiday').length, half: wd.filter(c => c.kind === 'half').length,
+    suspension: wd.filter(c => c.kind === 'suspension').length,
+  };
+}
+
+/** Special days for the list: back-to-back days with the same kind and name become one row (a Friday-to-Monday run too). */
+export function specialGroups(cells: DayCell[]): { start: DayCell; end: DayCell; days: number }[] {
+  const out: { start: DayCell; end: DayCell; days: number }[] = [];
+  for (const c of cells.filter(c => !c.weekend && c.kind)) {
+    const g = out[out.length - 1];
+    const gap = g ? (Date.parse(c.date) - Date.parse(g.end.date)) / 86_400_000 : 0;
+    const wd = new Date(c.date + 'T00:00:00Z').getUTCDay();
+    if (g && g.end.kind === c.kind && g.end.name === c.name && (gap === 1 || (gap === 3 && wd === 1))) { g.end = c; g.days++; }
+    else out.push({ start: c, end: c, days: 1 });
+  }
+  return out;
+}
 
 /** One cell per date of `month` ('YYYY-MM'); past school days get the share of learners who came in the morning. */
 export async function monthCells(db: KlasilidDb, classId: string, month: string, today: IsoDate, now: Date): Promise<DayCell[]> {
