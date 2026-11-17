@@ -46,7 +46,7 @@
     className = c ? `Gr. ${c.grade} ${c.section}` : '';
   }
   $effect(() => {
-    if (!valid) { go('attendance'); return; }
+    if (!valid) { location.replace('#/attendance'); return; } // replace: back must not return to the bad link
     load();
     if (past) return;
     const t = setInterval(load, 30_000);

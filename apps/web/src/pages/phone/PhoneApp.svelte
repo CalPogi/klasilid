@@ -15,22 +15,28 @@
   import ProfilePhone from './ProfilePhone.svelte';
   import SettingsPhone from './SettingsPhone.svelte';
   import SoonPhone from './SoonPhone.svelte';
+  import UpdateBanner from '../../components/UpdateBanner.svelte';
+  import type { Update } from '../../lib/updates';
 
   // The phone app: the bottom-bar frame and one phone screen per route. A route without a phone screen
   // shows its laptop page (`fallback`) inside the screen area; so do setup and the "connect once" message.
   export interface PhoneCtx {
     db: KlasilidDb; classId: string; className: string; schoolYearId: string; session: Session; mode: Mode; auth: AuthPort | null;
     now: () => Date; register: (t: { learner?: LLearner; bulk?: boolean }) => void; pageKey: number; rename: (name: string) => void;
+    update: Update | null;
   }
   let { current, onsignout, fallback, ctx }: { current: Route; onsignout?: () => void; fallback: Snippet<[Route]>; ctx: PhoneCtx } = $props();
 </script>
 
 <PhoneShell {current} {onsignout}>
+  {#if !ctx.classId}
+    <!-- setup or "connect once": not keyed, so closing the wizard (which changes the hash) keeps what was typed -->
+    <div class="scr screen on">{@render fallback(current)}</div>
+  {:else}
   {#key `${$hash}|${ctx.pageKey}`}
     <div class="scr screen on">
-      {#if !ctx.classId}
-        {@render fallback(current)}
-      {:else if current === 'grades'}
+      {#if ctx.update}<UpdateBanner update={ctx.update} />{/if}
+      {#if current === 'grades'}
         <AdvisoryHead className={ctx.className} count={0} tab="grades" />
         <SoonPhone title={SOON.grades} />
       {:else if current in SOON}
@@ -59,4 +65,5 @@
       {/if}
     </div>
   {/key}
+  {/if}
 </PhoneShell>

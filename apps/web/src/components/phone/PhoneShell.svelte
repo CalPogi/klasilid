@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { tick, type Snippet } from 'svelte';
   import { closeOnBack } from '../../lib/back';
   import type { Route } from '../../lib/router';
   import Icon from '../Icon.svelte';
@@ -13,15 +13,24 @@
   /** Screens reached from the menu light up Menu, as in the mockup. */
   const inMenu = $derived((['account', 'settings', 'calendar', 'reader'] as Route[]).includes(current));
   let menu = $state(false);
+  let menuBtn: HTMLButtonElement | undefined = $state();
+  let menuBox: HTMLDivElement | undefined = $state();
   $effect(() => { if (menu) return closeOnBack(() => (menu = false)); });
-  // Replacing the menu's history entry means back from the new screen returns to the old one, not to the menu.
+  // Focus goes to the first item when the menu opens and back to the Menu button when it closes.
+  $effect(() => {
+    if (!menu) return;
+    tick().then(() => menuBox?.querySelector<HTMLElement>('[role=menuitem]')?.focus());
+    return () => { if (!document.activeElement || document.activeElement === document.body || menuBox?.contains(document.activeElement)) menuBtn?.focus(); };
+  });
+  // With the menu open, its history entry is replaced, so back from the new screen returns to the old one.
   function open(r: Route) { location.replace('#/' + r); menu = false; }
+  const tab = (r: Route) => (menu ? open(r) : (location.hash = '#/' + r));
 </script>
 
 <div class="phone app-phone" id="tp" class:editing={current === 'seat-edit'}>
   {@render children()}
   <div class="mdrop-catch" class:open={menu} role="presentation" onclick={() => (menu = false)}></div>
-  <div class="mdrop" class:open={menu} role="menu" aria-label="Menu">
+  <div class="mdrop" class:open={menu} role="menu" aria-label="Menu" inert={!menu} bind:this={menuBox}>
     <button role="menuitem" type="button" onclick={() => open('account')}><Icon name="user" cls="ico-sm" />Profile</button>
     <button role="menuitem" type="button" onclick={() => open('settings')}><Icon name="gear" cls="ico-sm" />Settings</button>
     <button role="menuitem" type="button" onclick={() => open('calendar')}><Icon name="cal" cls="ico-sm" />School calendar</button>
@@ -32,10 +41,10 @@
   {#if current !== 'seat-edit'}<!-- the seat editor's Cancel / Save bar takes its place (mockup .phone.editing) -->
   <nav class="fnav" aria-label="Main">
     {#each TABS as [r, icon, label]}
-      <button type="button" class:on={on(r)} aria-current={on(r) ? 'page' : undefined} aria-label={label} onclick={() => (location.hash = '#/' + r)}>
+      <button type="button" class:on={on(r)} aria-current={on(r) ? 'page' : undefined} aria-label={label} onclick={() => tab(r)}>
         <Icon name={icon} cls="ico" /><span>{label}</span></button>
     {/each}
-    <button type="button" class:on={inMenu} aria-haspopup="menu" aria-expanded={menu} aria-label="Menu" onclick={() => (menu = !menu)}>
+    <button type="button" class:on={inMenu} bind:this={menuBtn} aria-haspopup="menu" aria-expanded={menu} aria-label="Menu" onclick={() => (menu = !menu)}>
       <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span>Menu</span></button>
   </nav>
   {/if}

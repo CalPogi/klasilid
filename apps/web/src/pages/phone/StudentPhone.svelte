@@ -31,7 +31,7 @@
   /** Everything is read first and shown together, so the page never appears half-filled. */
   async function load() {
     const r = (await studentRows(db, classId, today, 'all', '')).find(x => x.learner.id === id);
-    if (!r) { go('students'); return; }
+    if (!r) { location.replace('#/students'); return; } // replace: back must not return to the bad link
     const c = await db.classes.get(classId);
     const d = await classDay(db, classId, today, now());
     const rec = await learnerRecentDays(db, classId, id, now(), 31);
