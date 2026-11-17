@@ -16,7 +16,7 @@
   function open(r: Route) { location.replace('#/' + r); menu = false; }
 </script>
 
-<div class="phone app-phone" class:editing={current === 'seat-edit'}>
+<div class="phone app-phone" id="tp" class:editing={current === 'seat-edit'}>
   {@render children()}
   <div class="mdrop-catch" class:open={menu} role="presentation" onclick={() => (menu = false)}></div>
   <div class="mdrop" class:open={menu} role="menu" aria-label="Menu">
@@ -27,6 +27,7 @@
     <button role="menuitem" type="button" onclick={() => open('account')}><Icon name="help" cls="ico-sm" />Help and feedback</button>
     {#if onsignout}<button role="menuitem" type="button" class="danger" onclick={() => { menu = false; onsignout?.(); }}><Icon name="logout" cls="ico-sm" />Sign out</button>{/if}
   </div>
+  {#if current !== 'seat-edit'}<!-- the seat editor's Cancel / Save bar takes its place (mockup .phone.editing) -->
   <nav class="fnav" aria-label="Main">
     {#each TABS as [r, icon, label]}
       <button type="button" class:on={on(r)} aria-current={on(r) ? 'page' : undefined} aria-label={label} onclick={() => (location.hash = '#/' + r)}>
@@ -35,5 +36,6 @@
     <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label="Menu" onclick={() => (menu = !menu)}>
       <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span>Menu</span></button>
   </nav>
+  {/if}
   <div class="homebar"></div>
 </div>

@@ -5,6 +5,7 @@
   import AdvisoryHead from '../../components/phone/AdvisoryHead.svelte';
   import { hash, laptopRoute, param, SOON, type Route, type SoonRoute } from '../../lib/router';
   import AttendancePhone from './AttendancePhone.svelte';
+  import SeatEditPhone from './SeatEditPhone.svelte';
   import SeatPlanPhone from './SeatPlanPhone.svelte';
   import StudentPhone from './StudentPhone.svelte';
   import StudentsPhone from './StudentsPhone.svelte';
@@ -38,6 +39,8 @@
         <SeatPlanPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} date={current === 'day' ? param('date') : undefined} />
       {:else if current === 'attendance'}
         <AttendancePhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
+      {:else if current === 'seat-edit'}
+        <SeatEditPhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
       {:else if current === 'students'}
         <StudentsPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} mode={ctx.mode} onregister={ctx.register} />
       {:else if current === 'student'}

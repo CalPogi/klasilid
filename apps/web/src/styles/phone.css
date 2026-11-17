@@ -4,7 +4,7 @@
 .app-phone .scr{top:env(safe-area-inset-top);padding-top:calc(var(--s2) + 4px)}
 .app-phone .fnav{bottom:calc(12px + env(safe-area-inset-bottom))}
 .app-phone .homebar{display:none}
-.app-phone .m-ed-actions{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.app-phone .m-ed-actions{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom))}
 /* Sheets open from anywhere (some modals live outside the frame), so they are fixed to the screen. */
 .scrim{position:fixed}
 .sheet{position:fixed;max-height:86dvh;overflow:auto;padding-bottom:calc(34px + env(safe-area-inset-bottom))}
