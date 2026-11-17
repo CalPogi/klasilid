@@ -5,6 +5,7 @@
   import { classDay, needsAttention, todayManila, type ClassDay, type LearnerDay } from '../lib/attendance';
   import { pendingCount, type KlasilidDb } from '../lib/db';
   import { fmtLongDay, fmtMinutes, fmtTime, STATUS_LABEL } from '../lib/format';
+  import { attentionLine, todayNotices, todayTodos } from '../lib/today';
 
   // Markup and class names follow the mockup's web Today page.
   let { db, classId, teacherId, displayName, now, onregister }: {
@@ -52,32 +53,10 @@
   const results = $derived(query.trim() && day
     ? day.rows.filter(r => `${r.learner.firstName} ${r.learner.lastName}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6) : []);
   const noSchool = $derived(day && (day.dayType === 'holiday' || day.dayType === 'suspension'));
-  const taps = (n: number) => `${n} ${n === 1 ? 'tap' : 'taps'}`;
-
-  const notifications = $derived(day ? [
-    ...(day.suspectTaps.length ? [{ title: `Reader clock looked wrong for ${taps(day.suspectTaps.length)}`, sub: 'Check the times on the Attendance page', tone: 'bad' }] : []),
-    ...(day.unknownTaps.length ? [{ title: `${taps(day.unknownTaps.length)} from an unregistered card`, sub: day.unknownTaps.map(t => `${t.cardUid} · ${fmtTime(t.at)}`).join(', '), tone: 'warn' }] : []),
-    ...(refused ? [{ title: `${refused} ${refused === 1 ? 'change' : 'changes'} the server refused`, sub: 'Kept on this device. Check the account or ask for help.', tone: 'bad' }] : []),
-    ...(pending ? [{ title: `${pending} changes waiting to sync`, sub: online ? 'Sending now' : 'They send when the internet is back', tone: '' }] : []),
-  ] : []);
-
-  const todos = $derived(day ? [
-    { id: 'reader', title: 'Pair your door reader', sub: 'Do this when your reader arrives', due: 'Later' },
-    ...(noCard ? [{ id: 'cards', title: `Register cards for ${noCard} learners`, sub: 'No RFID card yet', due: '' }] : []),
-    ...(day.unknownTaps.length ? [{ id: 'unknown', title: 'Check taps from unregistered cards', sub: day.unknownTaps.map(t => `${t.cardUid} · ${fmtTime(t.at)}`).join(', '), due: 'Today' }] : []),
-    ...(day.suspectTaps.length ? [{ id: 'clock', title: `The reader's clock looked wrong for ${taps(day.suspectTaps.length)}. Check them.`, sub: 'The time on those taps may be off', due: 'Today' }] : []),
-  ] : []);
+  const notifications = $derived(day ? todayNotices(day, refused, pending, online) : []);
+  const todos = $derived(day ? todayTodos(day, noCard) : []);
   const left = $derived(todos.filter(t => !done[t.id]).length);
-
-  /** The line under a name on the attention list, and which half-day a click corrects. */
-  function why(r: LearnerDay): { text: string; session: Session; status: HalfDayStatus } {
-    const stray = r.review[0];
-    if (stray) return { text: `Tapped ${fmtTime(stray.at)}, outside tap times`, session: manilaMinute(stray.at) >= 12 * 60 ? 'pm' : 'am', status: r.am.status };
-    const s: Session = r.pm.flags.includes('after_closing') && !r.am.flags.includes('after_closing') ? 'pm' : half;
-    const tap = r.taps.find(x => x.id === r[s].inTapId);
-    if (r[s].flags.includes('after_closing')) return { text: `Came after closing${tap ? ' · ' + fmtTime(tap.at) : ''}`, session: s, status: r[s].status };
-    return { text: tap ? `Tapped ${fmtTime(tap.at)}` : afternoon ? 'No tap this afternoon' : 'No tap this morning', session: s, status: r[s].status };
-  }
+  const why = (r: LearnerDay) => attentionLine(r, afternoon);
   function open(r: LearnerDay, s: Session = half) {
     editing = { row: r, session: s };
     query = '';

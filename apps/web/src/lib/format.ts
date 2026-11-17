@@ -17,6 +17,12 @@ export function fmtLongDay(date: string): string {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(date + 'T00:00:00Z'));
 }
 
+/** How the phone screens name a learner, as the mockup does: 'Ana G.'. */
+export function shortName(l: { firstName: string; lastName: string }): string {
+  const last = l.lastName.trim();
+  return last ? `${l.firstName} ${last[0].toUpperCase()}.` : l.firstName;
+}
+
 /** Labels follow the approved mockup: on time shows as "Present". */
 export const STATUS_LABEL: Record<HalfDayStatus, string> = {
   on_time: 'Present', late: 'Late', absent: 'Absent', excused: 'Excused', pending: 'Not yet', no_school: 'No school',

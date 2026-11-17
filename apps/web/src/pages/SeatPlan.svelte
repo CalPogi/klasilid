@@ -5,7 +5,8 @@
   import { classDay, schoolDaysInMonth, todayManila, type ClassDay, type LearnerDay } from '../lib/attendance';
   import type { KlasilidDb, LLearner } from '../lib/db';
   import { fmtDay, fmtMinutes, fmtTime } from '../lib/format';
-  import { fillAZ, resize, saveSeatPlan, seatPlanFor, unseated, type Layout } from '../lib/seats';
+  import { fillAZ, saveSeatPlan, seatPlanFor, unseated, type Layout } from '../lib/seats';
+  import { clickSeat as tapSeat, editorHint, stepSize, type Pick } from '../lib/seat-editor';
 
   // Markup and class names follow the mockup's web Seat plan page and its editor (renderSeats, desk(), renderEd).
   let { db, classId, teacherId, now }: { db: KlasilidDb; classId: string; teacherId: string; now: () => Date } = $props();
@@ -21,7 +22,7 @@
   // editor
   let edit = $state(false);
   let draft: Layout = $state({ rows: 8, cols: 5, seats: [] });
-  let sel: { type: 'stu'; id: string } | { type: 'seat'; idx: number } | null = $state(null);
+  let sel: Pick = $state(null);
   let msg = $state('');
 
   const TAG: Record<HalfDayStatus, string> = { on_time: 'in', late: 'late', absent: 'absent', excused: 'excused', pending: 'notyet', no_school: 'notyet' };
@@ -48,18 +49,16 @@
   // editor actions (mockup's startEdit / clickSeat / act)
   function startEdit() { draft = { ...layout, seats: layout.seats.map(id => (id && rowOf.has(id) ? id : null)) }; sel = null; msg = ''; edit = true; }
   function step(k: 'rows' | 'cols', d: number) {
-    const before = draft.seats.filter(Boolean).length;
-    draft = resize(draft, k === 'rows' ? draft.rows + d : draft.rows, k === 'cols' ? draft.cols + d : draft.cols);
-    const lost = before - draft.seats.filter(Boolean).length;
+    const r = stepSize(draft, k, d);
+    draft = r.draft;
     sel = null;
-    msg = lost ? `${lost} learner${lost > 1 ? 's' : ''} moved to Not seated.` : '';
+    msg = r.lost ? `${r.lost} learner${r.lost > 1 ? 's' : ''} moved to Not seated.` : '';
   }
   function clickSeat(idx: number) {
-    const v = draft.seats[idx];
-    msg = '';
-    if (sel?.type === 'stu') { draft.seats[idx] = sel.id; if (v) msg = `${nameOf(v)} moved to Not seated.`; sel = null; return; }
-    if (sel?.type === 'seat') { if (sel.idx !== idx) { const a = sel.idx; [draft.seats[a], draft.seats[idx]] = [draft.seats[idx], draft.seats[a]]; } sel = null; return; }
-    if (v) sel = { type: 'seat', idx };
+    const r = tapSeat(draft, sel, idx);
+    draft = r.draft;
+    sel = r.sel;
+    msg = r.movedOut ? `${nameOf(r.movedOut)} moved to Not seated.` : '';
   }
   async function save() {
     await saveSeatPlan(db, classId, $state.snapshot(draft), now());
@@ -69,8 +68,7 @@
   let dragging: typeof sel = null;
   const uns = $derived(unseated(draft, learners));
   const cap = $derived(draft.rows * draft.cols);
-  const hint = $derived(msg || (sel?.type === 'stu' ? `Now click a seat for ${nameOf(sel.id)}.` : sel?.type === 'seat' ? `Click another seat to move or swap ${nameOf(draft.seats[sel.idx]!)}.`
-    : uns.length ? `${uns.length} learner${uns.length > 1 ? 's' : ''} still without a seat.` : 'Click a learner to move them. Click two learners to swap them.'));
+  const hint = $derived(editorHint(draft, sel, learners, msg, 'Click'));
 </script>
 
 <div class="page on fill" data-page="seat">

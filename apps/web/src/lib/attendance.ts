@@ -103,7 +103,33 @@ export async function monthsWithAttendance(db: KlasilidDb, classId: string, toda
   return out;
 }
 
-export type DayLetter = 'P' | 'L' | 'A' | 'E' | 'H' | 'N';
+/** A month's totals for the phone's three stats: present % of counted half-days (pending and no-school skipped), late and absent half-days. */
+export function monthSummary(days: ClassDay[]): { presentPct: number | null; late: number; absent: number } {
+  const halves = days.flatMap(d => d.rows.flatMap(r => [r.am.status, r.pm.status])).filter(s => s !== 'pending' && s !== 'no_school');
+  const present = halves.filter(s => s === 'on_time' || s === 'late' || s === 'excused').length;
+  return {
+    presentPct: halves.length ? Math.round((present / halves.length) * 100) : null,
+    late: halves.filter(s => s === 'late').length,
+    absent: halves.filter(s => s === 'absent').length,
+  };
+}
+
+/** One learner's last `n` school days (this month and last), newest first. */
+export async function learnerRecentDays(db: KlasilidDb, classId: string, learnerId: string, now: Date, n = 5): Promise<{ date: IsoDate; row: LearnerDay }[]> {
+  const today = todayManila(now);
+  const prev = new Date(today.slice(0, 7) + '-01T00:00:00Z');
+  prev.setUTCMonth(prev.getUTCMonth() - 1);
+  const dates = [...await schoolDaysInMonth(db, classId, today.slice(0, 7), today), ...await schoolDaysInMonth(db, classId, prev.toISOString().slice(0, 7), today)];
+  const out: { date: IsoDate; row: LearnerDay }[] = [];
+  for (const date of dates) {
+    if (out.length >= n) break;
+    const row = (await classDay(db, classId, date, now)).rows.find(r => r.learner.id === learnerId);
+    if (row) out.push({ date, row });
+  }
+  return out;
+}
+
+export type DayLetter ='P' | 'L' | 'A' | 'E' | 'H' | 'N';
 
 /**
  * One letter for the month grid (mockup legend): P present, L late, A absent, E excused,
