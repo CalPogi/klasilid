@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App.svelte';
 import Modal from '../src/components/Modal.svelte';
 import { openDb } from '../src/lib/db';
+import { historyIdle } from '../src/lib/back';
 import { PHONE_QUERY } from '../src/lib/layout';
 import { laptopRoute, param, routeOf } from '../src/lib/router';
 import { mockMatchMedia } from './phone-helpers';
@@ -71,7 +72,31 @@ describe('the app on a phone and on a laptop', () => {
   });
 });
 
+describe('a phone with no class yet', () => {
+  const noClass = async (remote: unknown) => {
+    mockMatchMedia(true);
+    const db = openDb('t-' + crypto.randomUUID());
+    await db.meta.put({ key: 'user', value: { userId: 'u-1', displayName: "Ma'am Test" } });
+    const auth = { signIn: async () => ({ userId: 'u-1', displayName: '' }), signOut: async () => {} };
+    render(App, { deps: { db, mode: 'online', auth, remote } as never });
+  };
+
+  it('shows the setup wizard as a sheet with its Next button', async () => {
+    await noClass(null);
+    expect(await screen.findByText('Your advisory class', {}, { timeout: 3000 })).toBeTruthy();
+    expect(document.querySelector('.sheet.open')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
+  });
+
+  it('shows "Connect once" inside the phone screen when the first sync fails', async () => {
+    await noClass({ push: async () => {}, pull: async () => { throw new TypeError('Failed to fetch'); } });
+    const msg = await screen.findByText('Connect once to load your class', {}, { timeout: 3000 });
+    expect(msg.closest('.scr')).toBeTruthy();
+  });
+});
+
 describe('Modal on a phone', () => {
+  beforeEach(() => historyIdle());
   const body = createRawSnippet(() => ({ render: () => '<h4 id="tm">Title</h4>' }));
 
   it('is a bottom sheet, and back closes it', async () => {
@@ -91,6 +116,18 @@ describe('Modal on a phone', () => {
     expect(history.state?.klSheet).toBe(true);
     unmount();
     await vi.waitFor(() => expect(history.state).toEqual({ marker: 'before' }));
+  });
+
+  it('a sheet opened right after another closes stays open (add student, then register card)', async () => {
+    mockMatchMedia(true);
+    const first = render(Modal, { labelledby: 'tm', onclose: vi.fn(), children: body });
+    first.unmount();
+    const onclose = vi.fn();
+    render(Modal, { labelledby: 'tm', onclose, children: body });
+    await new Promise(r => setTimeout(r, 50));
+    expect(onclose).not.toHaveBeenCalled();
+    history.back();
+    await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
   });
 
   it('stays the laptop modal on a laptop', () => {
