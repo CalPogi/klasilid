@@ -2,7 +2,10 @@
   import type { Snippet } from 'svelte';
   import PhoneShell from '../../components/phone/PhoneShell.svelte';
   import type { KlasilidDb, LLearner } from '../../lib/db';
-  import { hash, laptopRoute, SOON, type Route, type SoonRoute } from '../../lib/router';
+  import AdvisoryHead from '../../components/phone/AdvisoryHead.svelte';
+  import { hash, laptopRoute, param, SOON, type Route, type SoonRoute } from '../../lib/router';
+  import AttendancePhone from './AttendancePhone.svelte';
+  import SeatPlanPhone from './SeatPlanPhone.svelte';
   import type { AuthPort, Mode, Session } from '../../lib/session';
   import HomePhone from './HomePhone.svelte';
   import SoonPhone from './SoonPhone.svelte';
@@ -21,11 +24,18 @@
     <div class="scr screen on">
       {#if !ctx.classId}
         {@render fallback(current)}
+      {:else if current === 'grades'}
+        <AdvisoryHead className={ctx.className} count={0} tab="grades" />
+        <SoonPhone title={SOON.grades} />
       {:else if current in SOON}
         <SoonPhone title={SOON[current as SoonRoute]} />
       {:else if current === 'today'}
         <HomePhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} displayName={ctx.session.displayName} now={ctx.now}
           onregister={() => ctx.register({ bulk: true })} />
+      {:else if current === 'seat' || current === 'day'}
+        <SeatPlanPhone db={ctx.db} classId={ctx.classId} teacherId={ctx.session.userId} now={ctx.now} date={current === 'day' ? param('date') : undefined} />
+      {:else if current === 'attendance'}
+        <AttendancePhone db={ctx.db} classId={ctx.classId} now={ctx.now} />
       {:else}
         {@render fallback(laptopRoute(current))}
       {/if}
