@@ -86,7 +86,7 @@ void test_seq_survives_reboot() {
   TEST_ASSERT_EQUAL_UINT32(last + 1, addTap(again, "04C3D4E5"));
 }
 
-void test_torn_last_write_is_ignored_and_seq_not_reused() {  // Review Focus 1
+void test_torn_unsent_record_is_ignored() {  // Review Focus 1: power cut while writing a tap never uploaded
   MemoryStorage s(16);
   uint32_t c;
   {
@@ -96,14 +96,46 @@ void test_torn_last_write_is_ignored_and_seq_not_reused() {  // Review Focus 1
     addTap(log, "04B2C3D4");
     c = addTap(log, "04C3D4E5");
   }
-  s.corrupt(c % 16);  // power cut in the middle of writing the last record
+  s.corrupt(c % 16);
   TapLog again(s, 16);
   TEST_ASSERT_TRUE(again.begin());
   TEST_ASSERT_EQUAL(2, again.unsentCount());
   TapRec out[4];
   TEST_ASSERT_EQUAL(2, again.unsent(out, 4));
   TEST_ASSERT_EQUAL_STRING("04B2C3D4", out[1].uid);
-  TEST_ASSERT_TRUE(again.nextSeq() > c);  // never hand out a seq the server may already hold
+}
+
+void test_torn_uploaded_record_never_reuses_seq() {  // the server holds an uploaded seq; a torn mark-as-sent must not free it
+  MemoryStorage s(16);
+  uint32_t c;
+  {
+    TapLog log(s, 16);
+    log.begin();
+    addTap(log, "04A1B2C3");
+    addTap(log, "04B2C3D4");
+    c = addTap(log, "04C3D4E5");
+    uint32_t ack[] = {c};
+    log.markSent(ack, 1);
+  }
+  s.corrupt(c % 16);  // power cut in the middle of rewriting c as sent
+  TapLog again(s, 16);
+  TEST_ASSERT_TRUE(again.begin());
+  TEST_ASSERT_TRUE(again.nextSeq() > c);
+}
+
+void test_tap_save_writes_no_meta_and_upload_saves_it_once() {  // a tap at the door is one flash write
+  MemoryStorage s(16);
+  TapLog log(s, 16);
+  log.begin();
+  uint32_t a = addTap(log, "04A1B2C3"), b = addTap(log, "04B2C3D4");
+  TEST_ASSERT_EQUAL(0, s.metaWrites);
+  log.markSent(&a, 1);
+  log.markSent(&b, 1);  // the uploader marks one seq at a time
+  TEST_ASSERT_EQUAL(1, s.metaWrites);
+  addTap(log, "04C3D4E5");
+  uint32_t c = log.nextSeq() - 1;
+  log.markSent(&c, 1);
+  TEST_ASSERT_EQUAL(2, s.metaWrites);
 }
 
 void test_lost_meta_write_never_reuses_seq() {  // Review Focus 1: power cut after the record, before the meta
@@ -309,7 +341,9 @@ void setup() {
   RUN_TEST(test_add_then_unsent_oldest_first);
   RUN_TEST(test_mark_sent_removes_exactly_those_and_repeats_are_harmless);
   RUN_TEST(test_seq_survives_reboot);
-  RUN_TEST(test_torn_last_write_is_ignored_and_seq_not_reused);
+  RUN_TEST(test_torn_unsent_record_is_ignored);
+  RUN_TEST(test_torn_uploaded_record_never_reuses_seq);
+  RUN_TEST(test_tap_save_writes_no_meta_and_upload_saves_it_once);
   RUN_TEST(test_lost_meta_write_never_reuses_seq);
   RUN_TEST(test_full_when_every_slot_is_unsent_and_sent_slots_are_reused);
   RUN_TEST(test_body_matches_contract);

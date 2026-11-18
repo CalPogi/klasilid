@@ -33,7 +33,18 @@ You should see `Klasilid reader`, then a line like `log: 0 unsent, next seq 1`. 
 python -m platformio test -e esp32dev
 ```
 
-Expected: both test groups pass. `test_core` shows `22 Tests 0 Failures 0 Ignored` (tap log, debounce, time, upload body, ack and roster parsing, setup-page checks, screen text). `test_storage` shows `3 Tests 0 Failures 0 Ignored` and prints the slowest tap write, which must be under 150 ms. `test_storage` erases the reader's flash; that's fine on a new reader. These are the tests that couldn't run before the board arrived. Copy the summary into the plan 5 notes. After the tests, upload the real firmware again (step 2): the tests replace it.
+Expected: both test groups pass. `test_core` shows `24 Tests 0 Failures 0 Ignored` (tap log, debounce, time, upload body, ack and roster parsing, setup-page checks, screen text). `test_storage` shows `4 Tests 0 Failures 0 Ignored` and prints the slowest tap write (must be under 150 ms; ~110 ms on the first reader) and how long the log takes to open at start-up (must be under 5 s; ~4 s). `test_storage` erases the reader's flash; that's fine on a new reader. Copy the summary into the plan 5 notes.
+
+After the tests, wipe the flash and upload the real firmware again (the tests replace it, and an old test run could leave test taps behind that the reader would upload as real ones):
+
+```bash
+python -m platformio run -t erase
+python -m platformio run -t upload
+```
+
+The first start after a wipe takes about 10 s (it creates the tap log); later starts, including after a brownout, take about 4 s before taps are accepted.
+
+First reader, 2026-11-18: all 28 tests passed; slowest tap write 107–120 ms; log opens in 4.0 s.
 
 ## 5. Check each part
 
