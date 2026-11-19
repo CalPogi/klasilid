@@ -1,6 +1,6 @@
 -- Test-only stand-ins for what Supabase already provides. Never deploy this file.
 create schema if not exists auth;
-create table auth.users (id uuid primary key);
+create table auth.users (id uuid primary key, email text);
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
