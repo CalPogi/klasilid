@@ -39,4 +39,41 @@ enum class NameFace : uint8_t { Big, Small };
 NameFace fitName(const char* name, char* out, size_t cap);
 
 void dateText(uint32_t unix, bool clockValid, char out[12]);  // "THU 19 NOV" (Manila), or "-- --- ---"
+
+// ---- The timeline: which scene shows and where each animation is (design §5, boards "Reader screen: …") ----
+enum class Scene : uint8_t { Idle, Dim, Setup, Tap, Repeat, Blocked };  // Blocked: Reader full / Storage error
+enum class Phase : uint8_t { None, Grow, Fold, Rise, Hold, Leave };
+// t: progress 0–1 within the phase. digitRoll / msgRoll: progress 0–1 of a roll, 0 when not rolling.
+// showProblem: the idle button shows the problem (or rolls back from it when msgRoll > 0).
+struct Frame {
+  Scene scene; Phase phase; float t; Result result;
+  uint8_t driftX, driftY; float digitRoll; float msgRoll; bool showProblem;
+};
+
+class Screen {
+ public:
+  void tap(Result r, uint32_t ms);    // a tap's result (AlreadyIn: the shorter Repeat sequence); cuts in at once
+  void block(Result r, uint32_t ms);  // Full or StorageError on a tap: shown 2.5 s, no flash
+  // minute: Manila minute of the day (drift and digit roll); full: the log is full (Reader full until it clears).
+  Frame frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool full, Problem p);
+  bool due(uint32_t ms) const;  // time to draw again: 40 ms while anything moves, else at the next change or 1 s
+  void drawn(uint32_t ms);      // the frame from the last frame() call went out at ms
+
+ private:
+  enum class Seq : uint8_t { None, Tap, Repeat, Block };
+  Seq seq_ = Seq::None;
+  Result result_ = Result::OnTime;
+  uint32_t start_ = 0;
+  bool tapped_ = false;
+  uint32_t lastTap_ = 0;
+  bool knowMinute_ = false;
+  uint16_t minute_ = 0;
+  bool rolling_ = false;
+  uint32_t rollStart_ = 0;
+  bool moving_ = false;
+  uint32_t nextEvent_ = 0;
+  bool hasNext_ = false;
+  bool force_ = true;
+  uint32_t nextDue_ = 0;
+};
 size_t utf8Len(const char* s);                                 // letters, not bytes

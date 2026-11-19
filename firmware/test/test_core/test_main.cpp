@@ -368,6 +368,123 @@ void test_every_label_fits_the_band() {  // 124 px at 5 px a character
   TEST_ASSERT_EQUAL(4, utf8Len("Pe\xC3\xB1" "a"));
 }
 
+// ---- screen timeline (plan 8, Task 3) ----
+static Frame fr(Screen& s, uint32_t ms, bool bright = true, bool setup = false, bool full = false, Problem p = Problem::None) {
+  return s.frame(ms, 432, bright, setup, full, p);
+}
+
+void test_tap_timeline() {
+  Screen s;
+  s.tap(Result::OnTime, 1000);
+  Frame f = fr(s, 1100);
+  TEST_ASSERT_TRUE(f.scene == Scene::Tap && f.phase == Phase::Grow);
+  TEST_ASSERT_FLOAT_WITHIN(0.01, 0.5, f.t);
+  TEST_ASSERT_TRUE(fr(s, 1300).phase == Phase::Fold);
+  TEST_ASSERT_TRUE(fr(s, 1500).phase == Phase::Rise);
+  TEST_ASSERT_TRUE(fr(s, 2000).phase == Phase::Hold);
+  TEST_ASSERT_TRUE(fr(s, 3600).phase == Phase::Leave);
+  TEST_ASSERT_TRUE(fr(s, 3900).scene == Scene::Idle);
+}
+
+void test_repeat_timeline() {
+  Screen s;
+  s.tap(Result::AlreadyIn, 0);
+  Frame f = fr(s, 100);
+  TEST_ASSERT_TRUE(f.scene == Scene::Repeat && f.phase == Phase::Rise);
+  TEST_ASSERT_TRUE(fr(s, 1000).phase == Phase::Hold);
+  TEST_ASSERT_TRUE(fr(s, 1600).phase == Phase::Leave);
+  TEST_ASSERT_TRUE(fr(s, 1900).scene == Scene::Idle);
+}
+
+void test_a_new_tap_cuts_in_from_any_phase() {  // Review Focus 1
+  Screen s;
+  s.tap(Result::OnTime, 0);
+  TEST_ASSERT_TRUE(fr(s, 2600).phase == Phase::Leave);
+  s.tap(Result::Late, 2600);
+  const Frame f = fr(s, 2650);
+  TEST_ASSERT_TRUE(f.scene == Scene::Tap && f.phase == Phase::Grow && f.result == Result::Late);
+}
+
+void test_blocked_for_two_and_a_half_seconds() {
+  Screen s;
+  s.block(Result::StorageError, 0);
+  const Frame f = fr(s, 2400);
+  TEST_ASSERT_TRUE(f.scene == Scene::Blocked && f.result == Result::StorageError);
+  TEST_ASSERT_TRUE(fr(s, 2600).scene == Scene::Idle);
+}
+
+void test_full_stays_until_space() {
+  Screen s;
+  Frame f = fr(s, 0, true, false, true);
+  TEST_ASSERT_TRUE(f.scene == Scene::Blocked && f.result == Result::Full);
+  s.tap(Result::OnTime, 100);  // a tap still shows its own sequence while full
+  TEST_ASSERT_TRUE(fr(s, 150, true, false, true).scene == Scene::Tap);
+  TEST_ASSERT_TRUE(fr(s, 5000, true, false, false).scene == Scene::Idle);
+}
+
+void test_idle_rolls_the_problem_message() {
+  Screen s;
+  Frame f = fr(s, 1000, true, false, false, Problem::NoWifi);
+  TEST_ASSERT_FALSE(f.showProblem);
+  TEST_ASSERT_EQUAL_FLOAT(0, f.msgRoll);
+  f = fr(s, 2850, true, false, false, Problem::NoWifi);
+  TEST_ASSERT_FLOAT_WITHIN(0.02, 0.5, f.msgRoll);
+  TEST_ASSERT_TRUE(fr(s, 4000, true, false, false, Problem::NoWifi).showProblem);
+  f = fr(s, 4000, true, false, false, Problem::None);
+  TEST_ASSERT_FALSE(f.showProblem);
+  TEST_ASSERT_EQUAL_FLOAT(0, f.msgRoll);
+}
+
+void test_dim_and_wake() {
+  Screen s;
+  TEST_ASSERT_TRUE(fr(s, 0, false).scene == Scene::Dim);
+  s.tap(Result::OnTime, 5000);
+  TEST_ASSERT_TRUE(fr(s, 9000, false).scene == Scene::Idle);  // sequence over, still within 10 s of the tap
+  TEST_ASSERT_TRUE(fr(s, 16000, false).scene == Scene::Dim);
+}
+
+void test_setup_scene() {
+  Screen s;
+  TEST_ASSERT_TRUE(fr(s, 0, true, true).scene == Scene::Setup);
+  s.tap(Result::Unknown, 10);
+  TEST_ASSERT_TRUE(fr(s, 50, true, true).scene == Scene::Tap);
+}
+
+void test_digit_roll_and_drift() {
+  Screen s;
+  Frame f = s.frame(0, 432, true, false, false, Problem::None);
+  TEST_ASSERT_EQUAL_FLOAT(0, f.digitRoll);
+  f = s.frame(150, 433, true, false, false, Problem::None);  // the minute changed
+  TEST_ASSERT_TRUE(f.digitRoll < 0.1);  // starts here
+  f = s.frame(300, 433, true, false, false, Problem::None);
+  TEST_ASSERT_FLOAT_WITHIN(0.02, 0.5, f.digitRoll);
+  TEST_ASSERT_EQUAL_FLOAT(0, s.frame(600, 433, true, false, false, Problem::None).digitRoll);
+  f = s.frame(700, 434, false, false, false, Problem::None);  // dim drift steps are 3 px
+  TEST_ASSERT_EQUAL(3, f.driftX);
+  TEST_ASSERT_EQUAL(3, f.driftY);
+}
+
+void test_frame_rate() {
+  Screen s;
+  TEST_ASSERT_TRUE(s.due(0));
+  fr(s, 0);
+  s.drawn(0);
+  TEST_ASSERT_FALSE(s.due(500));
+  TEST_ASSERT_TRUE(s.due(1000));
+  s.tap(Result::OnTime, 2000);
+  TEST_ASSERT_TRUE(s.due(2000));  // the first flash frame goes out at once
+  fr(s, 2000);
+  s.drawn(2000);
+  TEST_ASSERT_FALSE(s.due(2020));
+  TEST_ASSERT_TRUE(s.due(2040));
+}
+
+void test_timing_survives_millis_wrap() {  // Review Focus 5
+  Screen s;
+  s.tap(Result::OnTime, 0xFFFFFF00u);
+  TEST_ASSERT_TRUE(fr(s, 0x64).phase == Phase::Fold);  // 356 ms later
+}
+
 void test_parse_roster_repeat_minutes() {  // the class's "ignore repeat" setting: only 1, 3, 5 or 10, else 3
   Card cards[1];
   Window w[1];
@@ -461,6 +578,17 @@ void setup() {
   RUN_TEST(test_name_faces_count_characters_not_bytes);
   RUN_TEST(test_date_text);
   RUN_TEST(test_every_label_fits_the_band);
+  RUN_TEST(test_tap_timeline);
+  RUN_TEST(test_repeat_timeline);
+  RUN_TEST(test_a_new_tap_cuts_in_from_any_phase);
+  RUN_TEST(test_blocked_for_two_and_a_half_seconds);
+  RUN_TEST(test_full_stays_until_space);
+  RUN_TEST(test_idle_rolls_the_problem_message);
+  RUN_TEST(test_dim_and_wake);
+  RUN_TEST(test_setup_scene);
+  RUN_TEST(test_digit_roll_and_drift);
+  RUN_TEST(test_frame_rate);
+  RUN_TEST(test_timing_survives_millis_wrap);
   RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
   RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
   RUN_TEST(test_screen_lines_fit_the_display);

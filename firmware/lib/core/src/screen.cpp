@@ -92,6 +92,110 @@ NameFace fitName(const char* name, char* out, size_t cap) {
   return NameFace::Small;
 }
 
+// ---- timeline ----
+static constexpr uint32_t kFrameMs = 40;      // 25 frames a second
+static constexpr uint32_t kRollMs = 300;      // digit and message rolls
+static constexpr uint32_t kMsgCycleMs = 6000; // tap text 0–2700, roll, problem 3000–5700, roll back
+static constexpr uint32_t kWakeMs = 10000;    // a tap keeps a dim screen bright this long
+
+static int32_t since(uint32_t now, uint32_t then) { return static_cast<int32_t>(now - then); }  // safe across millis wrap
+
+void Screen::tap(Result r, uint32_t ms) {
+  seq_ = r == Result::AlreadyIn ? Seq::Repeat : Seq::Tap;
+  result_ = r;
+  start_ = ms;
+  tapped_ = true;
+  lastTap_ = ms;
+  force_ = true;
+}
+
+void Screen::block(Result r, uint32_t ms) {
+  seq_ = Seq::Block;
+  result_ = r;
+  start_ = ms;
+  tapped_ = true;
+  lastTap_ = ms;
+  force_ = true;
+}
+
+Frame Screen::frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool full, Problem p) {
+  Frame f{Scene::Idle, Phase::None, 0, result_, 0, 0, 0, 0, false};
+  moving_ = false;
+  hasNext_ = false;
+  const auto until = [&](uint32_t at) { nextEvent_ = at; hasNext_ = true; };
+
+  // A running sequence: [phase, end ms] in order.
+  struct Step { Phase phase; int32_t end; };
+  static const Step kTap[] = {{Phase::Grow, 200}, {Phase::Fold, 450}, {Phase::Rise, 700}, {Phase::Hold, 2500}, {Phase::Leave, 2800}};
+  static const Step kRepeat[] = {{Phase::Rise, 300}, {Phase::Hold, 1500}, {Phase::Leave, 1800}};
+  static const Step kBlock[] = {{Phase::Hold, 2500}};
+  const Step* steps = seq_ == Seq::Tap ? kTap : seq_ == Seq::Repeat ? kRepeat : kBlock;
+  const size_t n = seq_ == Seq::Tap ? 5 : seq_ == Seq::Repeat ? 3 : 1;
+  if (seq_ != Seq::None) {
+    const int32_t el = since(ms, start_);
+    int32_t begin = 0;
+    for (size_t i = 0; i < n && seq_ != Seq::None; i++) {
+      if (el < steps[i].end) {
+        f.scene = seq_ == Seq::Tap ? Scene::Tap : seq_ == Seq::Repeat ? Scene::Repeat : Scene::Blocked;
+        f.phase = steps[i].phase;
+        f.t = static_cast<float>(el - begin) / static_cast<float>(steps[i].end - begin);
+        if (f.phase == Phase::Hold) until(start_ + steps[i].end);
+        else moving_ = true;
+        break;
+      }
+      begin = steps[i].end;
+      if (i == n - 1) seq_ = Seq::None;  // finished
+    }
+  }
+
+  // Minute changes: the clock's last digit rolls; drift steps once a minute.
+  if (knowMinute_ && minute != minute_) {
+    rolling_ = true;
+    rollStart_ = ms;
+  }
+  knowMinute_ = true;
+  minute_ = minute;
+  if (rolling_) {
+    const int32_t r = since(ms, rollStart_);
+    if (r < static_cast<int32_t>(kRollMs)) {
+      f.digitRoll = static_cast<float>(r) / kRollMs;
+      moving_ = true;
+    } else {
+      rolling_ = false;
+    }
+  }
+
+  if (seq_ == Seq::None) {
+    const bool awake = tapped_ && since(ms, lastTap_) < static_cast<int32_t>(kWakeMs);
+    if (full) f.scene = Scene::Blocked, f.result = Result::Full;
+    else if (setup) f.scene = Scene::Setup;
+    else if (!bright && !awake) f.scene = Scene::Dim;
+    else f.scene = Scene::Idle;
+    if (!bright && awake) until(lastTap_ + kWakeMs);
+    if (f.scene == Scene::Idle && p != Problem::None) {
+      const uint32_t c = ms % kMsgCycleMs;
+      if (c < 2700) until(ms + (2700 - c));
+      else if (c < 3000) f.msgRoll = static_cast<float>(c - 2700) / kRollMs, moving_ = true;
+      else if (c < 5700) f.showProblem = true, until(ms + (5700 - c));
+      else f.showProblem = true, f.msgRoll = static_cast<float>(c - 5700) / kRollMs, moving_ = true;
+    }
+  }
+
+  static const uint8_t kDrift[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+  const uint8_t step = f.scene == Scene::Dim ? 3 : 1;
+  f.driftX = kDrift[minute % 4][0] * step;
+  f.driftY = kDrift[minute % 4][1] * step;
+  return f;
+}
+
+bool Screen::due(uint32_t ms) const { return force_ || since(ms, nextDue_) >= 0; }
+
+void Screen::drawn(uint32_t ms) {
+  force_ = false;
+  nextDue_ = ms + (moving_ ? kFrameMs : 1000);
+  if (!moving_ && hasNext_ && since(nextDue_, nextEvent_) > 0) nextDue_ = nextEvent_;
+}
+
 void dateText(uint32_t unix, bool clockValid, char out[12]) {
   if (!clockValid) {
     strcpy(out, "-- --- ---");
