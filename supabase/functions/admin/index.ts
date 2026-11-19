@@ -1,8 +1,8 @@
 // Supabase Edge Function: POST /functions/v1/admin. Thin Deno wrapper; all logic lives in handler.ts.
-// Deploy WITH JWT verification (no --no-verify-jwt): the gateway checks the token's signature, so this file only
-// reads its claims. handler.ts then requires aal2 and the owner role before anything else.
+// Deploy WITH JWT verification (no --no-verify-jwt). The token's signature is also checked here (auth.getClaims),
+// so a wrong deploy flag can't open the admin section. handler.ts then requires aal2 and the owner role.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { handleAdmin, type Caller, type Overview } from './handler.ts';
+import { callerOf, handleAdmin, type Overview } from './handler.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -15,16 +15,10 @@ const must = <T>({ data, error }: { data: T; error: unknown }): T => {
 
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, authorization, apikey, x-client-info' };
 
-/** The verified token's user and assurance level; null for the anon key or a malformed header. */
-function callerOf(req: Request): Caller | null {
-  const token = req.headers.get('authorization')?.replace(/^Bearer /i, '') ?? '';
-  try {
-    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const claims = JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), '=')));
-    return typeof claims.sub === 'string' && claims.sub ? { userId: claims.sub, aal: String(claims.aal ?? '') } : null;
-  } catch {
-    return null;
-  }
+/** Claims of a token whose signature checks out (signing keys, or Auth's own check for legacy secrets); else null. */
+async function verify(token: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await db.auth.getClaims(token);
+  return error || !data ? null : (data.claims as Record<string, unknown>);
 }
 
 Deno.serve(async req => {
@@ -32,7 +26,7 @@ Deno.serve(async req => {
   if (req.method !== 'POST') return new Response('method not allowed', { status: 405, headers: CORS });
   const body = await req.json().catch(() => null);
   try {
-    const result = await handleAdmin(callerOf(req), body, {
+    const result = await handleAdmin(await callerOf(req.headers.get('authorization'), verify), body, {
       roleOf: async id => must(await db.from('profiles').select('role').eq('id', id).maybeSingle())?.role ?? null,
       overview: async () => must(await db.rpc('admin_overview')) as Overview,
       addSchool: async name => must(await db.from('schools').insert({ name }).select('id').single()).id,
@@ -68,7 +62,8 @@ Deno.serve(async req => {
             for (;;) {
               const files = must(await db.storage.from('excuse-letters').list(classId, { limit: 1000 })) ?? [];
               if (files.length === 0) break;
-              must(await db.storage.from('excuse-letters').remove(files.map(f => `${classId}/${f.name}`)));
+              const removed = must(await db.storage.from('excuse-letters').remove(files.map(f => `${classId}/${f.name}`))) ?? [];
+              if (removed.length === 0) throw new Error('nothing removed'); // e.g. sub-folders: stop instead of looping
             }
           } catch {
             left.push(classId);

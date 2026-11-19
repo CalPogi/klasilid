@@ -2,7 +2,7 @@
   import type { SupabaseClient } from '@supabase/supabase-js';
   import Icon from '../../components/Icon.svelte';
   import Logo from '../../components/Logo.svelte';
-  import { adminCall, AdminError, OFFLINE, OWNER_ONLY, twoStepNeed, type Overview } from '../../lib/admin';
+  import { adminCall, AdminError, ENDED, OFFLINE, OWNER_ONLY, twoStepNeed, type Overview } from '../../lib/admin';
   import { closeOnBack } from '../../lib/back';
   import { phone } from '../../lib/layout';
   import AdminReaders from './AdminReaders.svelte';
@@ -16,20 +16,25 @@
 
   type Tab = 'schools' | 'teachers' | 'readers';
   const TABS: [Tab, string, string][] = [['schools', 'school', 'Schools'], ['teachers', 'users', 'Teachers'], ['readers', 'wifi', 'Readers']];
-  let stage: 'check' | 'setup' | 'code' | 'ready' | 'offline' = $state('check');
+  let stage: 'check' | 'setup' | 'code' | 'ready' | 'offline' | 'ended' = $state('check');
   let tab: Tab = $state('readers');
   let overview: Overview | null = $state(null);
   let menu = $state(false);
   $effect(() => { if (menu) return closeOnBack(() => (menu = false)); });
 
-  /** One admin action. A refused second step goes back to the code screen; a non-owner is signed out. */
+  /** One admin action. An ended session (401) says so; a refused second step goes back to the code screen; a
+   *  non-owner is signed out. */
   async function call<T>(action: string, body: object = {}): Promise<T> {
     try {
       return await adminCall<T>(sb, action, body);
     } catch (e) {
-      if (e instanceof AdminError && e.status === 403) {
+      if (e instanceof AdminError && e.status === 401) stage = 'ended';
+      else if (e instanceof AdminError && e.status === 403) {
         if (e.message === OWNER_ONLY) onsignout();
-        else stage = (await twoStepNeed(sb).catch(() => 'code')) === 'setup' ? 'setup' : 'code';
+        else {
+          const need = await twoStepNeed(sb).catch(() => 'code');
+          stage = need === 'setup' || need === 'ended' ? need : 'code';
+        }
       }
       throw e;
     }
@@ -40,7 +45,7 @@
       overview = await call<Overview>('overview');
       stage = 'ready';
     } catch (e) {
-      if (!(e instanceof AdminError && e.status === 403)) stage = 'offline';
+      if (!(e instanceof AdminError && (e.status === 401 || e.status === 403))) stage = 'offline';
     }
   }
 
@@ -67,7 +72,10 @@
   {/if}
 {/snippet}
 
-{#if stage === 'setup' || stage === 'code'}
+{#if stage === 'ended'}
+  <div class="adm-ended"><div class="note" role="status"><span>{ENDED}</span>
+    <button type="button" class="btn" onclick={signout}>Sign in again</button></div></div>
+{:else if stage === 'setup' || stage === 'code'}
   <TwoStep {sb} need={stage} ondone={load} onsignout={signout} />
 {:else if stage === 'check'}
   <p class="boot">Loading…</p>

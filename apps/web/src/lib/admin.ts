@@ -45,12 +45,16 @@ export function ago(iso: string, now: Date): string {
   return shortDate(iso);
 }
 
-export type TwoStepNeed = 'setup' | 'code' | 'done';
+export const ENDED = 'Your admin sign-in ended. Sign in again.';
 
-/** done: this session already passed the second step; code: a factor exists, ask for its code; setup: none yet. */
+export type TwoStepNeed = 'setup' | 'code' | 'done' | 'ended';
+
+/** done: this session already passed the second step; code: a factor exists, ask for its code; setup: none yet;
+ *  ended: there is no session any more (signed out elsewhere, or its refresh failed). */
 export async function twoStepNeed(sb: SupabaseClient): Promise<TwoStepNeed> {
   const { data, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error) throw error;
+  if (!data.currentLevel) return 'ended';
   if (data.currentLevel === 'aal2') return 'done';
   return data.nextLevel === 'aal2' ? 'code' : 'setup';
 }

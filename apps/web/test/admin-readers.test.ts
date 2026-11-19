@@ -95,6 +95,23 @@ it('an account that is not the owner is signed out', async () => {
   await waitFor(() => expect(onsignout).toHaveBeenCalled());
 });
 
+it('a 401 ends the admin sign-in with a message instead of "can’t reach"', async () => {
+  const f = fakeAdmin({ fail: { overview: [401, 'Sign in first'] } });
+  const onsignout = vi.fn();
+  render(AdminApp, { sb: f.sb, onsignout, now: NOW });
+  expect(await screen.findByText('Your admin sign-in ended. Sign in again.')).toBeTruthy();
+  expect(screen.queryByText('Can’t reach Klasilid right now. Check the internet and try again.')).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }));
+  expect(onsignout).toHaveBeenCalled();
+});
+
+it('a missing session at start ends the admin sign-in too', async () => {
+  const f = fakeAdmin({ levels: [null, null] as never });
+  render(AdminApp, { sb: f.sb, onsignout: vi.fn(), now: NOW });
+  expect(await screen.findByText('Your admin sign-in ended. Sign in again.')).toBeTruthy();
+  expect(f.calls).toEqual([]);
+});
+
 it('offline shows the message and Retry reloads', async () => {
   const f = fakeAdmin({ fail: { overview: [0, ''] }, failOnce: true });
   render(AdminApp, { sb: f.sb, onsignout: vi.fn(), now: NOW });

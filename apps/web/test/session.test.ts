@@ -19,20 +19,46 @@ const fakeAuth = (ok = true, userId = 'u-1'): AuthPort & { calls: number } => ({
 
 describe('owner sign-in', () => {
   /** A stand-in for a supabase client: password sign-in, the profile read, and setSession. */
-  const fakeClient = (role: string) => {
+  const fakeClient = (role: string, opts: { setSessionFails?: boolean; profile?: 'error' | 'missing' } = {}) => {
     const c = {
       setSessions: [] as unknown[],
       auth: {
         async signInWithPassword({ email }: { email: string }) {
           return { data: { user: { id: 'u-' + email.split('@')[0] }, session: { access_token: 'a', refresh_token: 'r' } }, error: null };
         },
-        async setSession(s: unknown) { c.setSessions.push(s); return { data: {}, error: null }; },
+        async setSession(s: unknown) {
+          if (opts.setSessionFails) return { data: { session: null }, error: { message: 'Failed to fetch' } };
+          c.setSessions.push(s);
+          return { data: {}, error: null };
+        },
         async signOut() { return { error: null }; },
       },
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { display_name: 'Name', role, school_id: null, schools: null } }) }) }) }),
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () =>
+        opts.profile === 'error' ? { data: null, error: { message: 'Failed to fetch' } }
+          : opts.profile === 'missing' ? { data: null, error: null }
+          : { data: { display_name: 'Name', role, school_id: null, schools: null }, error: null } }) }) }),
     };
     return c;
   };
+
+  it('a teacher whose session could not be saved is not signed in', async () => {
+    const auth = supabaseAuth(fakeClient('teacher', { setSessionFails: true }) as never, () => fakeClient('teacher') as never);
+    await expect(auth.signIn('maria', 'pw')).rejects.toThrow("Can't reach Klasilid right now. Check the internet and try again.");
+  });
+
+  it('an owner whose session could not be held is not signed in', async () => {
+    const auth = supabaseAuth(fakeClient('owner') as never, refresh => fakeClient('owner', { setSessionFails: refresh }) as never);
+    await expect(auth.signIn('owner', 'pw')).rejects.toThrow("Can't reach Klasilid right now. Check the internet and try again.");
+  });
+
+  it('a failed profile read never falls through to the teacher path', async () => {
+    for (const profile of ['error', 'missing'] as const) {
+      const saved = fakeClient('teacher');
+      const auth = supabaseAuth(saved as never, () => fakeClient('owner', { profile }) as never);
+      await expect(auth.signIn('owner', 'pw')).rejects.toThrow("Can't reach Klasilid right now. Check the internet and try again.");
+      expect(saved.setSessions).toEqual([]);
+    }
+  });
 
   it('owner sign-in returns the owner client and touches no local data', async () => {
     const db = fresh();

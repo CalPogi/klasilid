@@ -17,8 +17,10 @@
 .modal .box .actions.one, .sheet .actions.one { grid-template-columns: 1fr; }
 .modal .box:has(.secret) { width: min(460px, 100%); }
 .modal .box .warn, .sheet .warn { margin-top: 4px; }
-.adm-off { align-items: center; justify-content: space-between; }
-.adm-off .btn { width: auto; padding: 0 18px; }
+.adm-off, .adm-ended .note { align-items: center; justify-content: space-between; }
+.adm-off .btn, .adm-ended .btn { width: auto; padding: 0 18px; flex: none; }
+.adm-ended { min-height: 100vh; display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: var(--bg); }
+.adm-ended .note { max-width: 460px; margin: 0; }
 /* phone */
 .adm .ptitle { display: inline; margin: 0; font-size: 22px; letter-spacing: -.02em; }
 .adm .rid { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; flex: none; color: var(--ink-2); }

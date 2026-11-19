@@ -90,20 +90,23 @@ export function supabaseAuth(sb: SupabaseClient, memoryClient?: (autoRefresh: bo
   return {
     async signIn(username, password) {
       const email = username.includes('@') ? username : `${username.toLowerCase()}@login.klasilid.app`;
+      const offline = "Can't reach Klasilid right now. Check the internet and try again.";
       const check = memoryClient ? memoryClient(false) : sb;
       const { data, error } = await check.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : "Can't reach Klasilid right now. Check the internet and try again.");
-      const { data: p } = await check.from('profiles').select('display_name, role, school_id, schools(name)').eq('id', data.user.id).maybeSingle();
-      const base = { userId: data.user.id, displayName: p?.display_name ?? username };
-      if (p?.role === 'owner') {
+      if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : offline);
+      // The role decides where the session goes, so an unread profile stops here instead of guessing "teacher".
+      const { data: p, error: pe } = await check.from('profiles').select('display_name, role, school_id, schools(name)').eq('id', data.user.id).maybeSingle();
+      if (pe || !p) throw new Error(offline);
+      const base = { userId: data.user.id, displayName: p.display_name ?? username };
+      if (p.role === 'owner') {
         if (!memoryClient) throw new Error('Sign in to the admin section from the Klasilid website.');
         const owner = memoryClient(true);
-        await owner.auth.setSession(data.session);
+        if ((await owner.auth.setSession(data.session)).error) throw new Error(offline);
         return { ...base, ownerClient: owner };
       }
-      if (check !== sb) await sb.auth.setSession(data.session);
-      const schoolName = (p?.schools as { name?: string } | null)?.name;
-      return { ...base, ...(p?.school_id && schoolName ? { school: { id: p.school_id, name: schoolName } } : {}) };
+      if (check !== sb && (await sb.auth.setSession(data.session)).error) throw new Error(offline);
+      const schoolName = (p.schools as { name?: string } | null)?.name;
+      return { ...base, ...(p.school_id && schoolName ? { school: { id: p.school_id, name: schoolName } } : {}) };
     },
     async changePassword(current, next) {
       const { data } = await sb.auth.getUser();

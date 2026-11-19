@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleAdmin, type AdminDeps, type Caller } from '../functions/admin/handler';
+import { callerOf, handleAdmin, type AdminDeps, type Caller } from '../functions/admin/handler';
 import { sha256Hex } from '../functions/tap/handler';
 
 const OWNER: Caller = { userId: 'owner-1', aal: 'aal2' };
@@ -117,11 +117,6 @@ describe('teachers', () => {
     expect(called('deleteTeacher')[0].args).toEqual(['teacher-1', 'owner-1']);
     expect((await handleAdmin(OWNER, { action: 'deleteTeacher', teacherId: 'nobody', confirm: 'x' }, d)).status).toBe(404);
   });
-  it('removeClassPhotos passes the classes through', async () => {
-    const { d, called } = deps();
-    expect(await handleAdmin(OWNER, { action: 'removeClassPhotos', classIds: ['class-1'] }, d)).toEqual({ status: 200, body: { photosLeft: [] } });
-    expect(called('removeClassPhotos')[0].args).toEqual([['class-1']]);
-  });
 });
 
 it('logs each change once and never a secret', async () => {
@@ -138,6 +133,27 @@ it('logs each change once and never a secret', async () => {
   for (const b of out as Record<string, string>[]) {
     for (const k of ['code', 'key', 'pairingCode'] as const) if (b[k]) expect(logged).not.toContain(b[k]);
   }
+});
+
+describe('who the caller is', () => {
+  it('a token whose signature does not check out gives no caller', async () => {
+    const forged = 'Bearer x.' + btoa(JSON.stringify({ sub: 'owner-1', aal: 'aal2' })) + '.y';
+    expect(await callerOf(forged, async () => null)).toBeNull();
+  });
+  it('the caller comes from the verified claims, not the header', async () => {
+    expect(await callerOf('Bearer t', async t => (t === 't' ? { sub: 'owner-1', aal: 'aal2' } : null))).toEqual({ userId: 'owner-1', aal: 'aal2' });
+    expect(await callerOf('Bearer t', async () => ({ role: 'anon' }))).toBeNull(); // the anon key has no sub
+    expect(await callerOf(null, async () => ({ sub: 'x', aal: 'aal2' }))).toBeNull();
+  });
+});
+
+it('removeClassPhotos only touches classes that are gone, and logs it', async () => {
+  const live = deps(); // classExists: only 'class-1'
+  const gone = '00000000-0000-0000-0000-0000000000aa';
+  expect(await handleAdmin(OWNER, { action: 'removeClassPhotos', classIds: ['class-1', '', '../x', gone] }, live.d))
+    .toEqual({ status: 200, body: { photosLeft: [] } });
+  expect(live.called('removeClassPhotos')[0].args).toEqual([[gone]]);
+  expect(live.called('audit').map(a => a.args)).toEqual([['remove_class_photos', gone, 'owner-1']]);
 });
 
 it('overview returns the lists', async () => {

@@ -40,6 +40,18 @@ export interface AdminDeps {
 }
 
 type Result = { status: number; body: unknown };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The caller from the Authorization header, using only claims whose signature `verify` checked (null if it didn't).
+ *  The gateway's JWT check is not relied on: a deploy with --no-verify-jwt must not open the admin section. */
+export async function callerOf(
+  authorization: string | null, verify: (token: string) => Promise<Record<string, unknown> | null>,
+): Promise<Caller | null> {
+  const token = authorization?.replace(/^Bearer /i, '').trim() ?? '';
+  if (!token) return null;
+  const claims = await verify(token).catch(() => null);
+  return claims && typeof claims.sub === 'string' && claims.sub ? { userId: claims.sub, aal: String(claims.aal ?? '') } : null;
+}
 const say = (status: number, message: string): Result => ({ status, body: { message } });
 const notFound = say(404, 'Not found');
 
@@ -116,8 +128,13 @@ export async function handleAdmin(caller: Caller | null, body: unknown, deps: Ad
     }
 
     case 'removeClassPhotos': {
-      const classIds = Array.isArray(b.classIds) ? b.classIds.filter((c): c is string => typeof c === 'string') : [];
-      return { status: 200, body: { photosLeft: await deps.removeClassPhotos(classIds) } };
+      // Only folders of classes that no longer exist (left over from a teacher delete): a live class keeps its letters.
+      const asked = Array.isArray(b.classIds) ? b.classIds.filter((c): c is string => typeof c === 'string' && UUID.test(c)) : [];
+      const classIds: string[] = [];
+      for (const c of asked) if (!(await deps.classExists(c))) classIds.push(c);
+      const photosLeft = await deps.removeClassPhotos(classIds);
+      for (const c of classIds) await deps.audit('remove_class_photos', c, me);
+      return { status: 200, body: { photosLeft } };
     }
 
     default:

@@ -64,7 +64,7 @@ export function fakeMfa(opts: { levels?: [string, string]; factors?: { id: strin
   const calls: string[] = [];
   const factors = opts.factors ?? [];
   const mfa = {
-    async getAuthenticatorAssuranceLevel() { return { data: { currentLevel: opts.levels?.[0] ?? 'aal1', nextLevel: opts.levels?.[1] ?? 'aal1' }, error: null }; },
+    async getAuthenticatorAssuranceLevel() { return { data: { currentLevel: opts.levels ? opts.levels[0] : 'aal1', nextLevel: opts.levels ? opts.levels[1] : 'aal1' }, error: null }; },
     async listFactors() {
       return { data: { all: factors.map(f => ({ ...f, factor_type: 'totp' })), totp: factors.filter(f => f.status === 'verified').map(f => ({ ...f, factor_type: 'totp' })) }, error: null };
     },
