@@ -62,5 +62,7 @@ void wifi::tick() {
 }
 
 bool wifi::online() { return WiFi.status() == WL_CONNECTED; }
+int wifi::rssi() { return WiFi.RSSI(); }
+bool wifi::hotspot() { return apOn; }
 const char* wifi::state() { return online() ? "Wi-Fi" : apOn ? "Hotspot" : "No Wi-Fi"; }
 const char* wifi::mode() { return apOn ? "ap+sta" : "sta"; }

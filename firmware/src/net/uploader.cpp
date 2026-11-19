@@ -23,6 +23,9 @@ void uploader::begin(const Config& c) { cfg = c; }
 void uploader::kick() { kicked = true; }
 uint32_t uploader::lastUploadAt() { return lastOkUnix; }
 const char* uploader::note() { return keyRejected ? KL_MSG_KEY_REJECTED : nullptr; }
+static std::atomic<bool> sending{false};
+bool uploader::busy() { return sending; }
+bool uploader::rejected() { return keyRejected; }
 
 void uploader::tick() {
   if (cfg.server.isEmpty() || cfg.deviceKey.isEmpty() || !wifi::online()) return;
@@ -41,7 +44,9 @@ void uploader::tick() {
   }
   const size_t len = buildBody(cfg.deviceId.c_str(), recs, n, body, sizeof body);
   String resp;
+  sending = true;
   const int code = len ? http::request(cfg, "POST", "/functions/v1/tap", body, len, resp) : -1;
+  sending = false;
   if (code == 200) {
     const size_t m = parseAck(resp.c_str(), seqs, kBatch);
     // One flash write per seq; release the log between them so a tap at the door waits for one write at most.
