@@ -96,3 +96,12 @@ it('bulk registration walks learners without a card in order; skip moves on; a t
   expect(await screen.findByText('1 of 2 registered')).toBeTruthy();
   expect(screen.getByText('Ben Bautista')).toBeTruthy();
 });
+
+it('a registered card is sent to the server at once, so the door reader can find it while the learner waits', async () => {
+  const db = await classDb();
+  await db.cards.delete('CCCCCCCC');
+  const poll = vi.fn(async () => {});
+  render(RegisterCardModal, { db, learners: [(await db.learners.get('c'))!], mode: 'demo', now: () => NOW, poll, onclose: vi.fn() });
+  await fireEvent.click(screen.getByRole('button', { name: 'Simulate tap' }));
+  await vi.waitFor(() => expect(poll).toHaveBeenCalled());
+});
