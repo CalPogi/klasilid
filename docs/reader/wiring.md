@@ -7,7 +7,7 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
 
 - **The RC522 card reader runs on 3.3 V only.** Its 3.3V pin goes to the ESP32 pin labelled **3V3**, never to VIN or 5V. 5 V can damage it.
 - **Each pin takes one wire.** The ESP32 has only one 3V3 pin and two GND pins, so not every part can plug into them. The clock (DS3231) and the screen (OLED) get their power from two ordinary ESP32 pins, **D32** (3.3 V) and **D33** (ground), which the firmware switches on at start-up. They use little power (about 20 mA together), so this usually works; bring-up step 5 checks it with a multimeter.
-- **The screen plugs into the clock, not the ESP32.** The DS3231 has two sets of pins: a 6-pin side (`32K SQW SCL SDA VCC GND`) and a 4-pin side (`SCL SDA VCC GND`). The ESP32 connects to the 6-pin side; the OLED connects to the 4-pin side, which passes everything through.
+- **The clock and the screen each have their own four wires to the ESP32.** The DS3231's 4-pin side is often sold as bare holes (no pins), so the screen doesn't chain through it; use the clock's 6-pin side (`32K SQW SCL SDA VCC GND`) only. The screen is powered from **D26** (3.3 V) and **D14** (ground), the same way as the clock.
 - **Check the buzzer module first.** Look at the small transistor on it. If it reads **S8050** (or the listing says "high level trigger"), it works on VIN as wired below. If it reads **S8550** (or "low level trigger"), it can't be switched off from 5 V: it would sound all the time. That kind needs 3.3 V instead, which means an ESP32 expansion board (see the end of this page).
 - Pin labels are printed next to each pin. Some ESP32 boards print `G5` or just `5` instead of `D5`; they are the same pin.
 
@@ -27,10 +27,10 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
 | 9 | ESP32 **D33** | DS3231 clock, 6-pin side | GND |
 | 10 | ESP32 **D21** | DS3231 clock, 6-pin side | SDA |
 | 11 | ESP32 **D22** | DS3231 clock, 6-pin side | SCL |
-| 12 | DS3231 4-pin side **VCC** | OLED screen | VCC |
-| 13 | DS3231 4-pin side **GND** | OLED screen | GND |
-| 14 | DS3231 4-pin side **SDA** | OLED screen | SDA |
-| 15 | DS3231 4-pin side **SCL** | OLED screen | SCL |
+| 12 | ESP32 **D26** | OLED screen | VCC |
+| 13 | ESP32 **D14** | OLED screen | GND |
+| 14 | ESP32 **D16** (sometimes RX2) | OLED screen | SDA |
+| 15 | ESP32 **D17** (sometimes TX2) | OLED screen | SCL |
 | 16 | ESP32 **VIN** (5 V from USB; S8050 buzzer modules only) | Buzzer | VCC (sometimes +) |
 | 17 | ESP32 **GND** (the other one) | Buzzer | GND (sometimes −) |
 | 18 | ESP32 **D25** | Buzzer | I/O (sometimes S or SIG) |
@@ -65,8 +65,7 @@ Unplug the USB cable while you connect wires. You need 18 jumpers.
   </g>
   <rect x="570" y="215" width="160" height="60" rx="8" fill="#ede9fe" stroke="#6d28d9"/>
   <text x="650" y="238" text-anchor="middle" font-weight="700" fill="#4c1d95">OLED screen</text>
-  <text x="650" y="258" text-anchor="middle" fill="#4c1d95" font-size="11">4 wires from the DS3231's 4-pin side</text>
-  <path d="M650 190V215" stroke="#6d28d9" stroke-width="3" stroke-dasharray="5 3"/>
+  <text x="650" y="258" text-anchor="middle" fill="#4c1d95" font-size="11">D26 VCC · D14 GND · D16 SDA · D17 SCL</text>
   <rect x="570" y="295" width="160" height="80" rx="8" fill="#dcfce7" stroke="#15803d"/>
   <text x="650" y="313" text-anchor="middle" font-weight="700" fill="#14532d">Buzzer</text>
   <g fill="#14532d"><text x="580" y="331">VCC (5 V)</text><text x="580" y="351">GND</text><text x="580" y="369">I/O</text></g>

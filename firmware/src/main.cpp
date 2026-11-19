@@ -99,15 +99,18 @@ void setup() {
   Serial.println("Klasilid reader");
   logMutex = xSemaphoreCreateMutex();
   rostercache::begin();
-  // Power the DS3231 + OLED from two GPIOs (see pins.h), at full drive strength, before talking to them.
-  pinMode(PIN_I2C_POWER, OUTPUT);
-  pinMode(PIN_I2C_GROUND, OUTPUT);
-  gpio_set_drive_capability(static_cast<gpio_num_t>(PIN_I2C_POWER), GPIO_DRIVE_CAP_3);
-  gpio_set_drive_capability(static_cast<gpio_num_t>(PIN_I2C_GROUND), GPIO_DRIVE_CAP_3);
+  // Power the DS3231 and the OLED from GPIO pairs (see pins.h), at full drive strength, before talking to them.
+  for (int pin : {PIN_I2C_POWER, PIN_I2C_GROUND, PIN_OLED_POWER, PIN_OLED_GROUND}) {
+    pinMode(pin, OUTPUT);
+    gpio_set_drive_capability(static_cast<gpio_num_t>(pin), GPIO_DRIVE_CAP_3);
+  }
   digitalWrite(PIN_I2C_GROUND, LOW);
+  digitalWrite(PIN_OLED_GROUND, LOW);
   digitalWrite(PIN_I2C_POWER, HIGH);
+  digitalWrite(PIN_OLED_POWER, HIGH);
   delay(50);  // let the OLED power up
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  Wire1.begin(PIN_OLED_SDA, PIN_OLED_SCL);
   buzzer::begin();
   display::begin();
   rtc::begin();

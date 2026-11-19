@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "messages.h"
 
-static U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
+static U8G2_SSD1306_128X64_NONAME_F_2ND_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);  // Wire1: the screen's own bus
 
 static void centered(const char* s, int y) {
   const int w = oled.getUTF8Width(s);
@@ -11,7 +11,7 @@ static void centered(const char* s, int y) {
 }
 
 void display::begin() {
-  oled.begin();  // Wire is already started on the reader's pins by main.cpp
+  oled.begin();  // Wire1 is already started on the screen's pins by main.cpp
   oled.enableUTF8Print();
 }
 
