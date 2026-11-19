@@ -41,6 +41,37 @@ To try a build without publishing, run the workflow by hand: Actions → release
 
 The website updates by itself on every push to `main`; it doesn't need a tag.
 
+## The admin section
+
+Schools, sign-up codes, teachers and door readers are managed in the app itself, signed in as the **owner** (design: `docs/2026-11-19-admin-design.md`). It works on the website and the apps, on a laptop or a phone. Signing in as the owner on a teacher's device leaves her data and her saved login alone.
+
+**Owner account (once):**
+1. Supabase → Authentication → **Add user**. Email: `<your username>@login.klasilid.app` (pick a username that isn't a teacher's), a password you type yourself, and tick **Auto confirm user**. Copy the new user's **User UID**.
+2. Supabase → SQL editor, with your UID and name:
+   ```sql
+   insert into profiles (id, role, display_name) values ('<User UID>', 'owner', '<your name>');
+   ```
+3. Sign in to Klasilid with that username and password. The first time, it asks you to turn on two-step sign-in: scan the QR code with an authenticator app (Google Authenticator or similar) and type its 6-digit code. After that, every sign-in asks for the code.
+
+**Lost your phone:** Supabase → Authentication → your owner user → remove its MFA factor. Then sign in again and set it up on the new phone.
+
+**Deploying the admin section** (once per change to these parts; the website deploys itself on push):
+```bash
+npx.cmd supabase db push
+```
+```bash
+npx.cmd supabase functions deploy admin --remote=wfcidrghcrpzdekckseg --use-api --yes
+```
+```bash
+npx.cmd supabase functions deploy tap --no-verify-jwt --remote=wfcidrghcrpzdekckseg --use-api --yes
+```
+```bash
+npx.cmd supabase functions deploy roster --no-verify-jwt --remote=wfcidrghcrpzdekckseg --use-api --yes
+```
+`admin` keeps JWT verification on (no `--no-verify-jwt`): only a signed-in owner who passed two-step sign-in gets through. `tap` and `roster` now also record when each reader last connected.
+
+The scripts `scripts/school-code.mjs` and `scripts/new-reader.mjs` still work as a fallback.
+
 ## How the teacher gets updates
 
 - **Windows:** the app checks at start-up and once a day. When a new version exists, a banner says "A new version of Klasilid is ready". **Restart to update** downloads it, installs it quietly and reopens the app. Her saved data and unsynced changes stay.

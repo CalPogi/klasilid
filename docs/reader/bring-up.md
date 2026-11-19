@@ -47,12 +47,8 @@ With the reader running (step 2 again, then the monitor from step 3):
 
 ## 6. Connect it to Klasilid
 
-1. On the PC, in the project folder, make the reader's credentials. Use the class id of Grade 6 Diamond from Supabase (Table editor → classes → id):
-   ```bash
-   node scripts/new-reader.mjs <class-id>
-   ```
-   It prints one SQL line and three values: Reader ID, Reader key, Pairing code.
-2. Run the SQL line in Supabase (SQL editor). It stores only fingerprints of the key and code.
+1. Sign in to Klasilid as the owner (see `docs/release.md`, "The admin section"). Open **Readers → Add reader**, choose the class, and **Add reader**. It shows three values once: Reader ID, Reader key, Pairing code. Only fingerprints of the key and code are stored.
+2. (Fallback without the admin section: `node scripts/new-reader.mjs <class-id>` prints the same three values and one SQL line to run in the Supabase SQL editor.)
 3. On a phone, join the Wi-Fi hotspot **Klasilid-Diamond** (the reader opens it when it has no Wi-Fi saved). Open `http://192.168.4.1` in the browser.
 4. Fill in the setup page: choose the school Wi-Fi from the list, its password, the server address (`https://<project>.supabase.co`), and the Reader ID, Reader key and Pairing code from step 1. Save. The reader restarts and joins the school Wi-Fi.
 5. Keep the printed values somewhere private (not in a group chat). The Pairing code is needed to change the settings later; the setup page asks for it.
