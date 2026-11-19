@@ -1,6 +1,6 @@
 # Door reader screen: animated UI
 
-Date: 2026-11-19 · Status: draft, waiting for the owner's approval
+Date: 2026-11-19 · Status: approved by the owner on 2026-11-19
 
 Marks: **(decided)** = the owner chose it. **(builder's call, proposed)** = filled in during design, can be changed.
 
