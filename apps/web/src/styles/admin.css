@@ -1,0 +1,26 @@
+/* The owner's admin section: the few rules the approved boards (docs/mockup/admin/) add on top of the mockup's. */
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--accent); color: var(--ink);
+  font-size: 11.5px; font-weight: 800; margin-left: 8px; letter-spacing: .02em; vertical-align: 2px; }
+.adm .tbl td .muted, .adm .muted { color: var(--muted); }
+.adm .tbl tr.retired td { color: var(--muted); }
+.adm .dot.inl { display: inline-block; margin-right: 6px; }
+.adm .acts { display: flex; gap: 6px; justify-content: flex-end; flex: none; }
+.adm .idcell { display: inline-flex; align-items: center; gap: 6px; }
+.mini-btn.danger { color: var(--bad-ink); border-color: var(--bad-soft); }
+.cpy { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: inline-grid;
+  place-items: center; cursor: pointer; color: var(--ink-2); flex: none; }
+.secret { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border-radius: 12px;
+  padding: 10px 12px; margin-top: 8px; }
+.secret span { font-size: 12.5px; color: var(--muted); display: block; }
+.secret b { font-size: 16px; letter-spacing: .02em; word-break: break-all; font-variant-numeric: tabular-nums; }
+.secret b.big { font-size: 22px; letter-spacing: .06em; }
+.modal .box .actions.one, .sheet .actions.one { grid-template-columns: 1fr; }
+.modal .box .warn, .sheet .warn { margin-top: 4px; }
+.adm-off { align-items: center; justify-content: space-between; }
+.adm-off .btn { width: auto; padding: 0 18px; }
+/* phone */
+.adm .ptitle { display: inline; margin: 0; font-size: 22px; letter-spacing: -.02em; }
+.adm .rid { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; flex: none; color: var(--ink-2); }
+.adm .rowi.retired { color: var(--muted); }
+.adm .rowi .cpy { width: 44px; height: 44px; border-radius: 12px; }
+.adm .fnav button { flex: 1; }
