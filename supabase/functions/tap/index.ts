@@ -26,6 +26,10 @@ Deno.serve(async req => {
       const { error } = await db.from('taps').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
       if (error) throw error;
     },
+    markSeen: async id => {
+      const { error } = await db.from('devices').update({ last_seen_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
     now: () => new Date(),
   });
   return Response.json(result.body, { status: result.status });

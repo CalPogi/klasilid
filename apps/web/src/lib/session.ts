@@ -3,10 +3,12 @@ import type { KlasilidDb } from './db';
 import { DEMO_TEACHER_ID, seedDemo } from './demo';
 
 export type Mode = 'demo' | 'online';
-export interface Session { mode: Mode; userId: string; displayName: string; username?: string }
+/** `owner`: an owner's admin session, held only in memory (never saved on the device). */
+export interface Session { mode: Mode; userId: string; displayName: string; username?: string; owner?: SupabaseClient }
 export interface AuthPort {
-  /** `school`: the school a teacher signed up into with a school code (profiles.school_id). */
-  signIn(username: string, password: string): Promise<{ userId: string; displayName: string; school?: { id: string; name: string } }>;
+  /** `school`: the school a teacher signed up into with a school code (profiles.school_id).
+   *  `ownerClient`: present only for the owner account; its session lives in that client alone. */
+  signIn(username: string, password: string): Promise<{ userId: string; displayName: string; school?: { id: string; name: string }; ownerClient?: SupabaseClient }>;
   signOut(): Promise<void>;
   /** Re-checks the current password first. */
   changePassword?(current: string, next: string): Promise<void>;
@@ -38,7 +40,9 @@ export async function startSession(db: KlasilidDb, mode: Mode): Promise<Session 
 }
 
 export async function signIn(db: KlasilidDb, auth: AuthPort, username: string, password: string): Promise<Session> {
-  const { school, ...user } = await auth.signIn(username.trim(), password);
+  const { school, ownerClient, ...user } = await auth.signIn(username.trim(), password);
+  // The owner's admin session never opens, clears or writes this device's offline data (admin design §5).
+  if (ownerClient) return { mode: 'online', ...user, owner: ownerClient };
   const owner = (await db.meta.get('owner'))?.value as string | undefined;
   if (owner && owner !== user.userId) {
     const waiting = await db.outbox.count();
@@ -76,16 +80,33 @@ export async function saveDisplayName(db: KlasilidDb, userId: string, name: stri
 /**
  * Supabase sign-in. Login slips give usernames, and Supabase signs in by email,
  * so a username becomes `<username>@login.klasilid.app`; a real email is used as typed.
+ *
+ * The password is checked on a throwaway in-memory client (`memoryClient(false)`) so the role is known before
+ * anything is saved: a teacher's session then goes to the saved client `sb`; the owner's goes to a fresh in-memory
+ * client (`memoryClient(true)`, refreshing itself) and never reaches the device's saved login. Without
+ * `memoryClient`, the owner can't sign in here.
  */
-export function supabaseAuth(sb: SupabaseClient): AuthPort {
+export function supabaseAuth(sb: SupabaseClient, memoryClient?: (autoRefresh: boolean) => SupabaseClient): AuthPort {
   return {
     async signIn(username, password) {
       const email = username.includes('@') ? username : `${username.toLowerCase()}@login.klasilid.app`;
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : "Can't reach Klasilid right now. Check the internet and try again.");
-      const { data: p } = await sb.from('profiles').select('display_name, school_id, schools(name)').eq('id', data.user.id).maybeSingle();
-      const schoolName = (p?.schools as { name?: string } | null)?.name;
-      return { userId: data.user.id, displayName: p?.display_name ?? username, ...(p?.school_id && schoolName ? { school: { id: p.school_id, name: schoolName } } : {}) };
+      const offline = "Can't reach Klasilid right now. Check the internet and try again.";
+      const check = memoryClient ? memoryClient(false) : sb;
+      const { data, error } = await check.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.status === 400 ? WRONG_LOGIN : offline);
+      // The role decides where the session goes, so an unread profile stops here instead of guessing "teacher".
+      const { data: p, error: pe } = await check.from('profiles').select('display_name, role, school_id, schools(name)').eq('id', data.user.id).maybeSingle();
+      if (pe || !p) throw new Error(offline);
+      const base = { userId: data.user.id, displayName: p.display_name ?? username };
+      if (p.role === 'owner') {
+        if (!memoryClient) throw new Error('Sign in to the admin section from the Klasilid website.');
+        const owner = memoryClient(true);
+        if ((await owner.auth.setSession(data.session)).error) throw new Error(offline);
+        return { ...base, ownerClient: owner };
+      }
+      if (check !== sb && (await sb.auth.setSession(data.session)).error) throw new Error(offline);
+      const schoolName = (p.schools as { name?: string } | null)?.name;
+      return { ...base, ...(p.school_id && schoolName ? { school: { id: p.school_id, name: schoolName } } : {}) };
     },
     async changePassword(current, next) {
       const { data } = await sb.auth.getUser();

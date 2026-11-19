@@ -22,6 +22,7 @@
   import type { LLearner } from './lib/db';
   import Setup from './pages/Setup.svelte';
   import SignIn from './pages/SignIn.svelte';
+  import AdminApp from './pages/admin/AdminApp.svelte';
   import Soon from './pages/Soon.svelte';
   import Today from './pages/Today.svelte';
   import UpdateBanner from './components/UpdateBanner.svelte';
@@ -38,7 +39,10 @@
   const mode = deps?.mode ?? modeFromEnv(env);
   const db = deps?.db ?? openDb(dbName(mode));
   const sb = !deps && mode === 'online' ? createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY) : null;
-  const auth = deps ? deps.auth : sb ? supabaseAuth(sb) : null;
+  // The owner's admin session lives only in an in-memory client, never in this device's saved login (lib/session).
+  const memoryClient = (autoRefreshToken: boolean) =>
+    createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken, detectSessionInUrl: false } });
+  const auth = deps ? deps.auth : sb ? supabaseAuth(sb, memoryClient) : null;
   const remote = deps ? deps.remote : sb ? supabaseRemote(sb, db) : null;
   // Dev only: ?now=2026-11-13T01:00:00Z previews another moment (e.g. a school day).
   const fixed = env.DEV ? new URLSearchParams(location.search).get('now') : null;
@@ -100,6 +104,7 @@
     await opened(s);
   }
   async function sync(): Promise<boolean> {
+    if (session?.owner) return false; // the admin section has no local data to sync
     const r = remote && session && navigator.onLine ? await syncOnce(db, remote, now()) : null;
     await refresh();
     return !!r?.pulled;
@@ -107,6 +112,7 @@
   /** Opens from local data at once; only a device with no class yet waits for the first sync before offering setup. */
   async function opened(s: Session | null) {
     session = s;
+    if (s?.owner) { ready = true; return; } // owner: no class, no sync, no setup wizard
     if (s) await refresh();
     ready = true;
     if (!s || classId) { if (s) sync(); return; }
@@ -133,6 +139,12 @@
     return () => clearInterval(t);
   });
 
+  /** Ends the owner's in-memory session; the device's saved login and offline data were never touched. */
+  async function leaveOwner() {
+    await session?.owner?.auth.signOut().catch(() => {});
+    session = null;
+  }
+
   async function leave() {
     if (!auth) return;
     if (pending > 0 && !confirm(`${pending} changes haven't synced yet. They stay on this device and sync next time you sign in.`)) return;
@@ -147,6 +159,8 @@
   <SignUp invite={inviteOf(location.hash)} signup={i => signUpRemote(fetch, env.VITE_SUPABASE_URL, i)} onsignedup={signedUp} />
 {:else if !session && auth}
   <SignIn {db} {auth} onsignedin={opened} />
+{:else if session?.owner}
+  <AdminApp sb={session.owner} onsignout={leaveOwner} {now} />
 {:else if session}
   {#if mode === 'demo'}<div class="demo">Demo · data stays on this device</div>{/if}
   {#if $phone}

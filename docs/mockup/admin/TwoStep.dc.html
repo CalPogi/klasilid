@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two-step sign-in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B04A00}a:hover{color:#8A3A00}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #FF7A1A;outline-offset:2px}
+input:focus{border-color:#16161A !important}
+.kl-page{container-type:inline-size}
+.kl-input{box-sizing:border-box;width:100%;height:56px;border:1.5px solid #D5D5DC;border-radius:12px;padding:0 14px;font:inherit;font-size:24px;font-weight:700;letter-spacing:.3em;text-align:center;font-variant-numeric:tabular-nums;background:#FFFFFF;color:#16161A}
+.kl-label{display:block;font-size:14px;font-weight:700;margin:0 0 6px}
+.kl-steps{margin:0 0 18px;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;font-size:14.5px;color:#4A4A52}
+.kl-steps li{display:flex;gap:10px;align-items:flex-start}
+.kl-steps b.n{flex:none;width:24px;height:24px;border-radius:50%;background:#16161A;color:#FFFFFF;font-size:12.5px;display:grid;place-items:center}
+@container (max-width: 760px){.kl-box{border-color:transparent !important;padding:8px 4px 4px !important}.kl-main{padding-top:20px !important}}
+</style>
+</helmet>
+<div class="kl-page" style="width: 100%; min-height: 900px; box-sizing: border-box; background: #FFFFFF; color: #16161A; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.5; display: flex; flex-direction: column">
+  <main class="kl-main" style="flex: 1; box-sizing: border-box; padding: 40px 16px 16px; display: flex; align-items: center; justify-content: center">
+    <div style="width: 400px; max-width: 100%">
+      <div class="kl-box" style="box-sizing: border-box; border: 1px solid #E4E4E9; border-radius: 20px; padding: 32px 32px 28px">
+        <div style="display: flex; align-items: center; gap: 12px"><svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="19" fill="#16161A"></rect><path d="M22 12v40" stroke="#FF7A1A" stroke-width="10" stroke-linecap="round"></path><path d="M45 13L25 32l20 19" fill="none" stroke="#16161A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></path><path d="M45 13L25 32l20 19" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-size: 26px; letter-spacing: -.04em; font-weight: 800">Klasilid</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; background: #FF7A1A; font-size: 11.5px; font-weight: 800">Admin</span></div>
+
+        <sc-if value="{{setup}}" hint-placeholder-val="{{true}}">
+          <h1 style="margin: 26px 0 4px; font-size: 24px; letter-spacing: -.02em; font-weight: 800">Turn on two-step sign-in</h1>
+          <p style="margin: 0 0 18px; font-size: 15px; color: #6B6B74">The admin section needs a code from your phone as well as your password. You set this up once.</p>
+          <ol class="kl-steps">
+            <li><b class="n">1</b><span>Install an authenticator app, like Google Authenticator.</span></li>
+            <li><b class="n">2</b><span>In the app, add an account and scan this code.</span></li>
+            <li><b class="n">3</b><span>Type the 6-digit code the app shows.</span></li>
+          </ol>
+          <div style="display: flex; justify-content: center; margin: 0 0 10px">
+            <div role="img" aria-label="QR code to scan with the authenticator app" style="width: 168px; height: 168px; border: 2px dashed #D5D5DC; border-radius: 14px; display: grid; place-items: center; text-align: center; font-size: 13px; color: #6B6B74; padding: 12px; box-sizing: border-box">QR code from Supabase appears here</div>
+          </div>
+          <p style="margin: 0 0 18px; font-size: 13px; color: #4A4A52; text-align: center">Can’t scan? Enter this key in the app:<br><b style="font-size: 14px; letter-spacing: .06em; color: #16161A">JBSW Y3DP EHPK 3PXP</b></p>
+        </sc-if>
+
+        <sc-if value="{{enter}}" hint-placeholder-val="{{false}}">
+          <h1 style="margin: 26px 0 4px; font-size: 24px; letter-spacing: -.02em; font-weight: 800">Enter your code</h1>
+          <p style="margin: 0 0 20px; font-size: 15px; color: #6B6B74">Open your authenticator app and type the 6-digit code for Klasilid.</p>
+        </sc-if>
+
+        <sc-if value="{{error}}" hint-placeholder-val="{{false}}">
+          <div role="alert" style="display: flex; gap: 10px; align-items: flex-start; background: #FDEBEC; color: #B0202C; border-radius: 12px; padding: 12px 14px; margin: 0 0 18px; font-size: 14px; font-weight: 600">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 2px"><circle cx="12" cy="12" r="10"></circle><path d="M12 7v6M12 17h.01"></path></svg>
+            <span>That code isn’t right, or it changed. Type the code the app shows now.</span>
+          </div>
+        </sc-if>
+
+        <form onsubmit="return false" novalidate style="display: flex; flex-direction: column">
+          <label class="kl-label" for="tsCode">6-digit code</label>
+          <input class="kl-input" id="tsCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-invalid="{{invalid}}" style="border-color: {{fieldBorder}}">
+          <button type="submit" style="margin-top: 22px; width: 100%; height: 48px; border: 0; border-radius: 12px; background: #FF7A1A; color: #16161A; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer">{{submitText}}</button>
+        </form>
+
+        <sc-if value="{{notSetup}}" hint-placeholder-val="{{false}}">
+          <details style="margin-top: 16px; font-size: 14px; color: #4A4A52"><summary style="cursor: pointer; font-weight: 600; padding: 8px 0">Lost your phone?</summary><p style="margin: 4px 0 0">In the Supabase dashboard, open Authentication, find your owner account and remove its two-step factor. Then sign in again here and set it up on your new phone.</p></details>
+        </sc-if>
+        <p style="margin: 14px 0 0; font-size: 14px; text-align: center"><a href="SignIn.dc.html" style="font-weight: 600; text-decoration: none; display: inline-block; padding: 8px 2px">Sign out</a></p>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"preview":{"editor":"enum","options":["First time: set up","Enter code","Wrong code"],"default":"First time: set up"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const m = this.props.preview ?? 'First time: set up';
+    const setup = m === 'First time: set up';
+    const error = m === 'Wrong code';
+    return {
+      setup, enter: !setup, notSetup: !setup, error,
+      submitText: setup ? 'Turn on two-step sign-in' : 'Continue',
+      fieldBorder: error ? '#D92D3A' : '#D5D5DC',
+      invalid: error ? 'true' : 'false',
+    };
+  }
+}
+</script>
+</body>
+</html>

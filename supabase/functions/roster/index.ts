@@ -33,6 +33,7 @@ Deno.serve(async req => {
     },
     windows: async classId => must(await db.from('tap_windows').select('session, kind, opens, late_after, closes, effective_from').eq('class_id', classId)) ?? [],
     ignoreRepeat: async classId => must(await db.from('classes').select('ignore_repeat_minutes').eq('id', classId).single()).ignore_repeat_minutes,
+    markSeen: async id => { must(await db.from('devices').update({ last_seen_at: new Date().toISOString() }).eq('id', id)); },
     now: () => new Date(),
   });
   return Response.json(result.body, { status: result.status });
