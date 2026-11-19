@@ -24,12 +24,8 @@ class LittleFsStorage : public Storage {
   String shardPath(uint32_t shard) const;
   String metaPath() const;
   String folderPath(uint32_t shard) const;
-  fs::File& shard(uint32_t slot, bool forWrite);  // the open shard file for this slot (one kept open at a time)
   uint32_t capacity_;
   String dir_;
-  fs::File open_;
-  int32_t openShard_ = -1;
-  bool openRw_ = false;
   // The last shard read, whole: TapLog::begin() reads all 8,192 slots, and one read per slot took ~18 s at boot.
   uint8_t* cache_;
   int32_t cacheShard_ = -1;

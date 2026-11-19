@@ -22,8 +22,6 @@ String LittleFsStorage::shardPath(uint32_t shard) const {
 
 bool LittleFsStorage::begin(const char* dir) {
   dir_ = dir;
-  if (open_) open_.close();
-  openShard_ = -1;
   cacheShard_ = -1;
   if (!LittleFS.exists(dir_) && !LittleFS.mkdir(dir_)) return false;
   // Every shard exists at full size once <dir>/ready is there (written last, below): skip checking them on each boot.
@@ -49,26 +47,19 @@ bool LittleFsStorage::begin(const char* dir) {
   return true;
 }
 
-// Reads open the shard read-only (on-board timing: about a third quicker than "r+", which matters for the 128
-// reads at boot); a write reopens it for writing. Taps go to the same shard one after another, so that's rare.
-fs::File& LittleFsStorage::shard(uint32_t slot, bool forWrite) {
-  const int32_t want = static_cast<int32_t>(slot / kPerShard);
-  if (want != openShard_ || (forWrite && !openRw_)) {
-    if (open_) open_.close();
-    open_ = LittleFS.open(shardPath(want), forWrite ? "r+" : "r");
-    openShard_ = open_ ? want : -1;
-    openRw_ = forWrite;
-  }
-  return open_;
-}
-
+// No shard file stays open between calls. On the first reader online, the network code closed a descriptor number
+// that a kept-open shard held (seek failed with EBADF), and every tap after the first HTTPS request went unsaved.
+// Each read and write opens, uses and closes its shard; reads use "r" (about a third quicker than "r+" for the
+// 128 reads at boot), writes "r+".
 bool LittleFsStorage::read(uint32_t slot, TapRec& r) {
   if (slot >= capacity_) return false;
   const int32_t want = static_cast<int32_t>(slot / kPerShard);
   if (want != cacheShard_) {
-    fs::File& f = shard(slot, false);
     cacheShard_ = -1;
-    if (!f || !f.seek(0) || f.read(cache_, kShardBytes) != kShardBytes) return false;
+    fs::File f = LittleFS.open(shardPath(want), "r");
+    const bool ok = f && f.read(cache_, kShardBytes) == kShardBytes;
+    if (f) f.close();
+    if (!ok) return false;
     cacheShard_ = want;
   }
   memcpy(&r, cache_ + (slot % kPerShard) * sizeof(TapRec), sizeof r);
@@ -77,10 +68,11 @@ bool LittleFsStorage::read(uint32_t slot, TapRec& r) {
 
 bool LittleFsStorage::write(uint32_t slot, const TapRec& r) {
   if (slot >= capacity_) return false;
-  fs::File& f = shard(slot, true);
-  if (!f || !f.seek((slot % kPerShard) * sizeof(TapRec))) return false;
-  const bool ok = f.write(reinterpret_cast<const uint8_t*>(&r), sizeof r) == sizeof r;
-  f.flush();  // on flash before the beep (spec §8); rewrites one small shard, not the whole log
+  fs::File f = LittleFS.open(shardPath(slot / kPerShard), "r+");
+  if (!f) return false;
+  bool ok = f.seek((slot % kPerShard) * sizeof(TapRec)) &&
+            f.write(reinterpret_cast<const uint8_t*>(&r), sizeof r) == sizeof r;
+  f.close();  // on flash before the beep (spec §8); rewrites one small shard, not the whole log
   if (static_cast<int32_t>(slot / kPerShard) == cacheShard_) {
     if (ok) memcpy(cache_ + (slot % kPerShard) * sizeof(TapRec), &r, sizeof r);
     else cacheShard_ = -1;  // unsure what reached flash: read it again next time

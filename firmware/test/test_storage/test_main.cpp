@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <unity.h>
 #include "littlefs_storage.h"
 #include "taplog.h"
@@ -28,7 +29,28 @@ void test_add_is_fast_on_a_full_size_log() {
   char msg[32];
   snprintf(msg, sizeof msg, "slowest add: %lu ms", static_cast<unsigned long>(slowest));
   TEST_MESSAGE(msg);
-  TEST_ASSERT_LESS_THAN_UINT32(150, slowest);
+  // 250 ms: each save opens and closes its shard (a kept-open file went stale online, see below); with the beep
+  // (80 ms) and the first screen frame (33 ms) that still leaves room inside the 500 ms from card to feedback.
+  TEST_ASSERT_LESS_THAN_UINT32(250, slowest);
+}
+
+// Found on the first reader online: after an HTTPS request, the network code can close a descriptor number that the
+// tap log's open shard file held (seek then fails with EBADF, errno 9), and every later tap wasn't saved. Closing
+// descriptors behind the log's back stands in for that: the next save and read must still work.
+void test_save_survives_its_file_being_closed_behind_its_back() {
+  LittleFsStorage s(kCap);
+  TEST_ASSERT_TRUE(s.begin("/tf"));  // its own log, so the other tests' counts stay as they are
+  TapLog log(s, kCap);
+  log.begin();
+  uint32_t seq = 0;
+  TEST_ASSERT_TRUE(log.add("04A1B2C3", 1794525002, 0, seq) == TapLog::Add::Ok);
+  for (int fd = 3; fd < 64; fd++) ::close(fd);  // what a double close in the network code does to our file
+  uint32_t seq2 = 0;
+  TEST_ASSERT_TRUE(log.add("04B2C3D4", 1794525010, 0, seq2) == TapLog::Add::Ok);
+  TapRec out[2];
+  TEST_ASSERT_EQUAL(2, log.unsent(out, 2));
+  log.markSent(&seq, 1);
+  TEST_ASSERT_EQUAL(1, log.unsentCount());
 }
 
 // Review C1: marking one tap sent (what the uploader does per seq, holding the log mutex) is just as quick.
@@ -86,6 +108,7 @@ void setup() {
   TEST_ASSERT_TRUE(LittleFS.begin(true));
   LittleFS.format();
   RUN_TEST(test_add_is_fast_on_a_full_size_log);
+  RUN_TEST(test_save_survives_its_file_being_closed_behind_its_back);
   RUN_TEST(test_mark_sent_one_is_fast);
   RUN_TEST(test_taps_survive_reopen);
   RUN_TEST(test_begin_is_quick_on_a_full_size_log);
