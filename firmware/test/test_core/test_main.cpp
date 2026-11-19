@@ -256,11 +256,13 @@ void test_parse_roster_maps_names_and_windows() {
   Card cards[4];
   Window w[4];
   size_t nc = 0, nw = 0;
+  uint16_t rep = 0;
   TEST_ASSERT_TRUE(parseRoster(
       "{\"cards\":[{\"uid\":\"04A1B2C3\",\"name\":\"Ana A.\"},{\"uid\":\"04B2C3D4\",\"name\":\"Maria Concepcion Josefina Z.\"}],"
       "\"windows\":[{\"session\":\"am\",\"kind\":\"in\",\"opens\":390,\"lateAfter\":435,\"closes\":480},"
       "{\"session\":\"pm\",\"kind\":\"out\",\"opens\":960,\"lateAfter\":null,\"closes\":1050}],\"ignoreRepeatMinutes\":3}",
-      cards, 4, nc, w, 4, nw));
+      cards, 4, nc, w, 4, nw, rep));
+  TEST_ASSERT_EQUAL_UINT16(3, rep);
   TEST_ASSERT_EQUAL(2, nc);
   TEST_ASSERT_EQUAL_STRING("04A1B2C3", cards[0].uid);
   TEST_ASSERT_EQUAL_STRING("Ana A.", cards[0].name);
@@ -279,8 +281,22 @@ void test_parse_roster_bad_json_is_false() {
   Card cards[2];
   Window w[2];
   size_t nc = 9, nw = 9;
-  TEST_ASSERT_FALSE(parseRoster("{\"cards\":[", cards, 2, nc, w, 2, nw));
-  TEST_ASSERT_FALSE(parseRoster("{\"error\":\"unauthorized\"}", cards, 2, nc, w, 2, nw));
+  uint16_t rep = 0;
+  TEST_ASSERT_FALSE(parseRoster("{\"cards\":[", cards, 2, nc, w, 2, nw, rep));
+  TEST_ASSERT_FALSE(parseRoster("{\"error\":\"unauthorized\"}", cards, 2, nc, w, 2, nw, rep));
+}
+
+void test_parse_roster_repeat_minutes() {  // the class's "ignore repeat" setting: only 1, 3, 5 or 10, else 3
+  Card cards[1];
+  Window w[1];
+  size_t nc = 0, nw = 0;
+  uint16_t rep = 0;
+  TEST_ASSERT_TRUE(parseRoster("{\"cards\":[],\"windows\":[],\"ignoreRepeatMinutes\":10}", cards, 1, nc, w, 1, nw, rep));
+  TEST_ASSERT_EQUAL_UINT16(10, rep);
+  TEST_ASSERT_TRUE(parseRoster("{\"cards\":[],\"windows\":[],\"ignoreRepeatMinutes\":7}", cards, 1, nc, w, 1, nw, rep));
+  TEST_ASSERT_EQUAL_UINT16(3, rep);
+  TEST_ASSERT_TRUE(parseRoster("{\"cards\":[],\"windows\":[]}", cards, 1, nc, w, 1, nw, rep));
+  TEST_ASSERT_EQUAL_UINT16(3, rep);
 }
 
 // ---- Review I1: setup form checks and pairing-code lockout ----
@@ -354,6 +370,7 @@ void setup() {
   RUN_TEST(test_since_returns_sent_and_unsent_after_seq);
   RUN_TEST(test_parse_roster_maps_names_and_windows);
   RUN_TEST(test_parse_roster_bad_json_is_false);
+  RUN_TEST(test_parse_roster_repeat_minutes);
   RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
   RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
   RUN_TEST(test_screen_lines_fit_the_display);

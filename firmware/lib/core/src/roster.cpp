@@ -10,7 +10,8 @@ const char* statusFor(uint16_t minute, const Window* w, size_t n) {
   return "Recorded";
 }
 
-bool parseRoster(const char* json, Card* cards, size_t maxCards, size_t& nCards, Window* windows, size_t maxWindows, size_t& nWindows) {
+bool parseRoster(const char* json, Card* cards, size_t maxCards, size_t& nCards, Window* windows, size_t maxWindows, size_t& nWindows,
+                 uint16_t& repeatMinutes) {
   JsonDocument doc;
   if (deserializeJson(doc, json) || !doc["cards"].is<JsonArray>() || !doc["windows"].is<JsonArray>()) return false;
   nCards = 0;
@@ -30,5 +31,7 @@ bool parseRoster(const char* json, Card* cards, size_t maxCards, size_t& nCards,
                                  w["opens"] | uint16_t(0), w["lateAfter"].isNull() ? KL_NO_LATE : (w["lateAfter"] | KL_NO_LATE),
                                  w["closes"] | uint16_t(0)};
   }
+  const uint16_t r = doc["ignoreRepeatMinutes"] | uint16_t(0);
+  repeatMinutes = (r == 1 || r == 3 || r == 5 || r == 10) ? r : 3;  // the app's allowed values; anything else: its default
   return true;
 }

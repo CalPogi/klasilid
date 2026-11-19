@@ -15,4 +15,6 @@ const char* statusFor(uint16_t minute, const Window* w, size_t n);
 struct Card { char uid[21]; char name[24]; };
 
 // Parses the server's roster response (supabase/functions/roster). false if it isn't a roster.
-bool parseRoster(const char* json, Card* cards, size_t maxCards, size_t& nCards, Window* windows, size_t maxWindows, size_t& nWindows);
+// repeatMinutes: the class's "ignore repeat" setting (1, 3, 5 or 10; anything else gives 3).
+bool parseRoster(const char* json, Card* cards, size_t maxCards, size_t& nCards, Window* windows, size_t maxWindows, size_t& nWindows,
+                 uint16_t& repeatMinutes);

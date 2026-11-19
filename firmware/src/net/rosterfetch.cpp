@@ -15,8 +15,9 @@ static uint32_t lastFetchMs = 0;
 
 static bool apply(const char* json) {
   size_t nc = 0, nw = 0;
-  if (!parseRoster(json, cards, 120, nc, windows, 8, nw)) return false;
-  rostercache::set(cards, nc, windows, nw);
+  uint16_t repeat = 3;
+  if (!parseRoster(json, cards, 120, nc, windows, 8, nw, repeat)) return false;
+  rostercache::set(cards, nc, windows, nw, repeat);
   return true;
 }
 
