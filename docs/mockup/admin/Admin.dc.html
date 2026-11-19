@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Klasilid admin</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="phone.css">
+<style>
+body{margin:0;background:var(--bg)}
+.adm{position:relative;min-height:900px}
+.adm .app{min-height:860px}
+.adm .side{height:820px}
+.adm .modal{position:absolute;display:grid}
+.adm .modal .box{width:min(460px,100%)}
+.badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--accent);color:var(--ink);font-size:11.5px;font-weight:800;margin-left:8px;letter-spacing:.02em}
+.idcell{display:inline-flex;align-items:center;gap:6px}
+.cpy{width:36px;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:inline-grid;place-items:center;cursor:pointer;color:var(--ink-2)}
+.tbl td .muted{color:var(--muted)}
+.tbl tr.retired td{color:var(--muted)}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+.mini-btn.danger{color:var(--bad-ink);border-color:var(--bad-soft)}
+.secret{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border-radius:12px;padding:10px 12px;margin-top:8px}
+.secret span{font-size:12.5px;color:var(--muted);display:block}
+.secret b{font-size:16px;letter-spacing:.02em;word-break:break-all;font-variant-numeric:tabular-nums}
+.box .fld{margin-top:14px}
+.box .fld label{display:block;font-size:14px;font-weight:700;margin:0 0 6px}
+.box .fld input,.box .fld select{box-sizing:border-box;width:100%;height:48px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font:inherit;font-size:16px;background:var(--surface);color:var(--ink)}
+.box .actions{margin-top:18px}
+</style>
+</helmet>
+<div class="adm">
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+<symbol id="i-school" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V10l7-5 7 5v11M10 21v-5h4v5"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-4.5-6.5"/></symbol>
+<symbol id="i-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0M12 20h.01"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+</defs></svg>
+<div class="app full">
+  <aside class="side">
+    <div class="brand"><span class="logo" style="font-weight:900;font-size:19px;letter-spacing:-.04em">k</span>Klasilid<span class="badge">Admin</span></div>
+    <nav aria-label="Admin">
+      <a href="#" class="{{navSchools}}" aria-current="{{curSchools}}"><svg class="ico-sm"><use href="#i-school"/></svg>Schools</a>
+      <a href="#" class="{{navTeachers}}" aria-current="{{curTeachers}}"><svg class="ico-sm"><use href="#i-users"/></svg>Teachers</a>
+      <a href="#" class="{{navReaders}}" aria-current="{{curReaders}}"><svg class="ico-sm"><use href="#i-wifi"/></svg>Readers</a>
+    </nav>
+    <div style="flex:1"></div>
+    <button class="me2" aria-haspopup="menu" aria-expanded="false"><span class="avatar sm">KO</span><span><b>Klasilid owner</b><span class="s">Admin · two-step on</span></span><svg class="ico-sm chev"><use href="#i-down"/></svg></button>
+  </aside>
+  <section class="main">
+
+    <sc-if value="{{pSchools}}" hint-placeholder-val="{{false}}">
+    <div class="cls-head"><div><h2>Schools</h2><p>Advisers join a school with its sign-up code.</p></div><div class="hd-actions"><button class="btn"><svg class="ico-sm"><use href="#i-plus"/></svg>Add school</button></div></div>
+    <div class="panel"><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>School</th><th>Advisers</th><th>Sign-up code</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>San Isidro West Central School</b></td><td>2</td><td><span class="dot" style="display:inline-block;margin-right:6px"></span>Working · made Nov 18</td><td><div class="acts"><button class="mini-btn">Copy invite link</button><button class="mini-btn">New code</button></div></td></tr>
+      </tbody>
+    </table></div></div>
+    <div class="note"><svg class="ico-sm"><use href="#i-info"/></svg><span>Codes are shown only once, when you make them. Lost one? Make a new code; the old one stops working.</span></div>
+    </sc-if>
+
+    <sc-if value="{{pTeachers}}" hint-placeholder-val="{{false}}">
+    <div class="cls-head"><div><h2>Teachers</h2><p>Every adviser account, by school. Class data stays private to each teacher.</p></div></div>
+    <div class="panel"><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Name</th><th>Username</th><th>School</th><th>Classes</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>Maria Santos</b></td><td>msantos</td><td>San Isidro West Central School</td><td><span class="idcell">Gr. 6 Diamond<button class="cpy" aria-label="Copy class id of Gr. 6 Diamond"><svg class="ico-sm"><use href="#i-copy"/></svg></button></span></td><td><div class="acts"><button class="mini-btn danger">Delete account</button></div></td></tr>
+        <tr><td><b>Test Adviser</b></td><td>test-adviser</td><td>San Isidro West Central School</td><td><span class="idcell">Gr. 6 Test<button class="cpy" aria-label="Copy class id of Gr. 6 Test"><svg class="ico-sm"><use href="#i-copy"/></svg></button></span></td><td><div class="acts"><button class="mini-btn danger">Delete account</button></div></td></tr>
+      </tbody>
+    </table></div></div>
+    </sc-if>
+
+    <sc-if value="{{pReaders}}" hint-placeholder-val="{{true}}">
+    <div class="cls-head"><div><h2>Readers</h2><p>Door readers and the class each one takes attendance for.</p></div><div class="hd-actions"><button class="btn"><svg class="ico-sm"><use href="#i-plus"/></svg>Add reader</button></div></div>
+    <div class="panel"><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Reader</th><th>Class</th><th>School</th><th>Last connected</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>KD-0417</b></td><td>Gr. 6 Diamond · Maria Santos</td><td>San Isidro West Central School</td><td><span class="dot" style="display:inline-block;margin-right:6px"></span>2 min ago · v0.7</td><td><div class="acts"><button class="mini-btn">New key</button><button class="mini-btn danger">Retire</button></div></td></tr>
+        <tr><td><b>KD-0002</b></td><td>Gr. 6 Test · Test Adviser</td><td>San Isidro West Central School</td><td><span class="muted">Never connected</span></td><td><div class="acts"><button class="mini-btn">New key</button><button class="mini-btn danger">Retire</button></div></td></tr>
+        <tr class="retired"><td>KD-0105</td><td>Gr. 6 Diamond · Maria Santos</td><td>San Isidro West Central School</td><td>Retired Nov 19 · taps kept</td><td></td></tr>
+      </tbody>
+    </table></div></div>
+    </sc-if>
+  </section>
+</div>
+
+<sc-if value="{{mAddReader}}" hint-placeholder-val="{{false}}">
+<div class="modal open"><div class="box" role="dialog" aria-modal="true" aria-labelledby="arT">
+  <h4 id="arT">Add a reader</h4><div class="meta">Makes a reader ID, key and pairing code for one class. You type them into the reader’s setup page.</div>
+  <div class="fld"><label for="arCls">Class</label><select id="arCls"><option>Gr. 6 Diamond · Maria Santos · San Isidro WCS</option><option>Gr. 6 Test · Test Adviser · San Isidro WCS</option></select></div>
+  <div class="actions"><button class="btn ghost">Cancel</button><button class="btn">Add reader</button></div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{mShown}}" hint-placeholder-val="{{false}}">
+<div class="modal open"><div class="box" role="dialog" aria-modal="true" aria-labelledby="soT">
+  <h4 id="soT">Reader KD-0417 is ready</h4><div class="meta">For Gr. 6 Diamond. Type these into the reader’s setup page at 192.168.4.1.</div>
+  <div class="warn"><svg class="ico-sm"><use href="#i-lock"/></svg><span>Copy them now. They’re shown only this once and aren’t stored anywhere.</span></div>
+  <div class="secret"><div><span>Reader ID</span><b>KD-0417</b></div><button class="cpy" aria-label="Copy reader ID"><svg class="ico-sm"><use href="#i-copy"/></svg></button></div>
+  <div class="secret"><div><span>Reader key</span><b>q8Vd-xN2pLr7Tc0aWm3YbK9sHe5uJf1Z_gQ4oRtXyE</b></div><button class="cpy" aria-label="Copy reader key"><svg class="ico-sm"><use href="#i-copy"/></svg></button></div>
+  <div class="secret"><div><span>Pairing code</span><b>4802 7136</b></div><button class="cpy" aria-label="Copy pairing code"><svg class="ico-sm"><use href="#i-copy"/></svg></button></div>
+  <div class="actions" style="grid-template-columns:1fr"><button class="btn">Done, I’ve copied them</button></div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{mCode}}" hint-placeholder-val="{{false}}">
+<div class="modal open"><div class="box" role="dialog" aria-modal="true" aria-labelledby="scT">
+  <h4 id="scT">New sign-up code</h4><div class="meta">For San Isidro West Central School. The old code no longer works.</div>
+  <div class="warn"><svg class="ico-sm"><use href="#i-lock"/></svg><span>Copy it now. It’s shown only this once.</span></div>
+  <div class="secret"><div><span>Sign-up code</span><b style="font-size:22px;letter-spacing:.06em">QK7P-4XWN</b></div><button class="cpy" aria-label="Copy sign-up code"><svg class="ico-sm"><use href="#i-copy"/></svg></button></div>
+  <div class="secret"><div><span>Invite link for advisers</span><b style="font-size:14px">klasilid.pages.dev/app/#/signup?invite=QK7P-4XWN</b></div><button class="cpy" aria-label="Copy invite link"><svg class="ico-sm"><use href="#i-copy"/></svg></button></div>
+  <div class="actions" style="grid-template-columns:1fr"><button class="btn">Done, I’ve copied it</button></div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{mRetire}}" hint-placeholder-val="{{false}}">
+<div class="modal open"><div class="box" role="dialog" aria-modal="true" aria-labelledby="rtT">
+  <h4 id="rtT">Retire reader KD-0002?</h4><div class="meta">It stops working right away. Its taps stay, so Gr. 6 Test keeps its attendance history. A retired reader can’t come back; add a new one instead.</div>
+  <div class="fld"><label for="rtIn">Type KD-0002 to confirm</label><input id="rtIn" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+  <div class="actions"><button class="btn ghost">Cancel</button><button class="btn danger">Retire reader</button></div>
+</div></div>
+</sc-if>
+
+<sc-if value="{{mDelete}}" hint-placeholder-val="{{false}}">
+<div class="modal open"><div class="box" role="dialog" aria-modal="true" aria-labelledby="dtT">
+  <h4 id="dtT">Delete Test Adviser’s account?</h4><div class="meta">This deletes the login and everything in it: Gr. 6 Test, its learners, cards, attendance, excuse letters and its reader. It can’t be undone.</div>
+  <div class="warn"><svg class="ico-sm"><use href="#i-info"/></svg><span>Only for test accounts, or when the school asks in writing after the teacher has exported her data.</span></div>
+  <div class="fld"><label for="dtIn">Type test-adviser to confirm</label><input id="dtIn" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+  <div class="actions"><button class="btn ghost">Cancel</button><button class="btn danger">Delete account</button></div>
+</div></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"preview":{"editor":"enum","options":["Readers","Add reader","Reader key shown once","Retire reader","Schools","New school code shown once","Teachers","Delete teacher"],"default":"Readers"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const m = this.props.preview ?? 'Readers';
+    const page = ['Schools', 'New school code shown once'].includes(m) ? 's' : ['Teachers', 'Delete teacher'].includes(m) ? 't' : 'r';
+    return {
+      pSchools: page === 's', pTeachers: page === 't', pReaders: page === 'r',
+      navSchools: page === 's' ? 'on' : '', navTeachers: page === 't' ? 'on' : '', navReaders: page === 'r' ? 'on' : '',
+      curSchools: page === 's' ? 'page' : 'false', curTeachers: page === 't' ? 'page' : 'false', curReaders: page === 'r' ? 'page' : 'false',
+      mAddReader: m === 'Add reader', mShown: m === 'Reader key shown once', mRetire: m === 'Retire reader',
+      mCode: m === 'New school code shown once', mDelete: m === 'Delete teacher',
+    };
+  }
+}
+</script>
+</body>
+</html>
