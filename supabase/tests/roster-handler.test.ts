@@ -5,12 +5,14 @@ import { sha256Hex } from '../functions/tap/handler';
 const KEY = 'reader-secret-key';
 let deps: RosterDeps;
 let askedToday: string | undefined;
+let seen: string[];
 // 2026-11-12T23:10Z is 07:10 on Nov 13 in Manila
 const NOW = new Date('2026-11-12T23:10:00Z');
 
 beforeEach(async () => {
   const keyHash = await sha256Hex(KEY);
   askedToday = undefined;
+  seen = [];
   deps = {
     findDevice: async id => (id === 'KD-0001' ? { keyHash, classId: 'c1' } : null),
     activeCards: async (classId, today) => {
@@ -24,8 +26,20 @@ beforeEach(async () => {
       { session: 'pm', kind: 'out', opens: 960, late_after: null, closes: 1050, effective_from: '2026-06-01' },
     ],
     ignoreRepeat: async () => 3,
+    markSeen: async id => { seen.push(id); },
     now: () => NOW,
   };
+});
+
+it('a reader with a valid key is marked seen', async () => {
+  await handleRoster(headers(), url(), deps);
+  expect(seen).toEqual(['KD-0001']);
+});
+
+it('a retired reader is refused and not marked seen', async () => {
+  deps.findDevice = async () => ({ keyHash: await sha256Hex('unknown-after-retire'), classId: 'c1' });
+  expect((await handleRoster(headers(), url(), deps)).status).toBe(401);
+  expect(seen).toEqual([]);
 });
 
 const headers = (key = KEY) => new Headers({ 'x-device-key': key });

@@ -17,6 +17,8 @@ export interface RosterDeps {
   activeCards(classId: string, today: string): Promise<{ uid: string; firstName: string; lastName: string }[]>;
   windows(classId: string): Promise<TapWindowRow[]>;
   ignoreRepeat(classId: string): Promise<number>;
+  /** Records that this reader just connected with a valid key (devices.last_seen_at). */
+  markSeen(id: string): Promise<void>;
   now(): Date;
 }
 
@@ -39,6 +41,7 @@ export async function handleRoster(headers: Headers, url: URL, deps: RosterDeps)
   const key = headers.get('x-device-key');
   const device = key ? await deps.findDevice(deviceId) : null;
   if (!key || !device || !sameHash(await sha256Hex(key), device.keyHash)) return { status: 401, body: { error: 'unauthorized' } };
+  await deps.markSeen(deviceId);
 
   const today = manilaToday(deps.now());
   const [cards, windows, ignoreRepeatMinutes] = await Promise.all([

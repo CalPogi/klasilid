@@ -4,14 +4,17 @@ import { handleTap, sha256Hex, type TapDeps, type TapRow } from '../functions/ta
 const KEY = 'reader-secret-key';
 let stored: Map<string, TapRow>;
 let deps: TapDeps;
+let seen: string[];
 const NOW = new Date('2026-11-13T00:00:00Z');
 
 beforeEach(async () => {
   stored = new Map();
+  seen = [];
   const keyHash = await sha256Hex(KEY);
   deps = {
     findDevice: async id => (id === 'KD-0001' ? { keyHash } : null),
     insertTaps: async rows => { for (const r of rows) if (!stored.has(r.id)) stored.set(r.id, r); },
+    markSeen: async id => { seen.push(id); },
     now: () => NOW,
   };
 });
@@ -22,6 +25,21 @@ const tap = (seq: number, over: Record<string, unknown> = {}) =>
 const body = (taps: unknown[], deviceId = 'KD-0001') => ({ deviceId, taps });
 /** id = deviceId-seq-tappedAtMillis, so a reused seq (wiped reader) never collides with an old tap */
 const ID = (seq: number, at = '2026-11-12T23:10:02Z') => `KD-0001-${seq}-${Date.parse(at)}`;
+
+describe('last seen', () => {
+  it('a reader with a valid key is marked seen', async () => {
+    await handleTap(headers(), body([tap(1)]), deps);
+    expect(seen).toEqual(['KD-0001']);
+  });
+  it('a retired reader is refused and not marked seen', async () => {
+    // Retiring replaces the stored hash with the hash of a value nobody knows.
+    deps.findDevice = async () => ({ keyHash: await sha256Hex('unknown-after-retire') });
+    const r = await handleTap(headers(), body([tap(1)]), deps);
+    expect(r.status).toBe(401);
+    expect(seen).toEqual([]);
+    expect(stored.size).toBe(0);
+  });
+});
 
 describe('handleTap', () => {
   it('stores taps with id deviceId-seq and acks them', async () => {

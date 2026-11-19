@@ -13,6 +13,8 @@ export interface TapDeps {
   findDevice(id: string): Promise<{ keyHash: string } | null>;
   /** Must ignore rows whose id already exists (on conflict do nothing). */
   insertTaps(rows: TapRow[]): Promise<void>;
+  /** Records that this reader just connected with a valid key (devices.last_seen_at). */
+  markSeen(id: string): Promise<void>;
   now(): Date;
 }
 
@@ -52,6 +54,7 @@ export async function handleTap(headers: Headers, body: unknown, deps: TapDeps):
   const key = headers.get('x-device-key');
   const device = key ? await deps.findDevice(deviceId) : null;
   if (!key || !device || !sameHash(await sha256Hex(key), device.keyHash)) return unauthorized;
+  await deps.markSeen(deviceId);
 
   const now = deps.now().getTime();
   const rows: TapRow[] = [];
