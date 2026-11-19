@@ -4,6 +4,7 @@
 #include "debounce.h"
 #include "messages.h"
 #include "roster.h"
+#include "screen.h"
 #include "setupcheck.h"
 #include "taplog.h"
 #include "timefmt.h"
@@ -286,6 +287,87 @@ void test_parse_roster_bad_json_is_false() {
   TEST_ASSERT_FALSE(parseRoster("{\"error\":\"unauthorized\"}", cards, 2, nc, w, 2, nw, rep));
 }
 
+// ---- screen helpers (plan 8, Task 2) ----
+void test_wifi_bars() {
+  TEST_ASSERT_TRUE(wifiFrom(true, false, -60) == Wifi::Strong);
+  TEST_ASSERT_TRUE(wifiFrom(true, false, -61) == Wifi::Fair);
+  TEST_ASSERT_TRUE(wifiFrom(true, true, -72) == Wifi::Fair);  // connected wins over a hotspot left on
+  TEST_ASSERT_TRUE(wifiFrom(true, false, -73) == Wifi::Weak);
+  TEST_ASSERT_TRUE(wifiFrom(false, true, -50) == Wifi::Hotspot);
+  TEST_ASSERT_TRUE(wifiFrom(false, false, -50) == Wifi::None);
+}
+
+void test_top_problem_order() {  // Key > Clock > No Wi-Fi
+  TEST_ASSERT_TRUE(topProblem(true, false, false) == Problem::Key);
+  TEST_ASSERT_TRUE(topProblem(false, false, false) == Problem::Clock);
+  TEST_ASSERT_TRUE(topProblem(false, true, false) == Problem::NoWifi);
+  TEST_ASSERT_TRUE(topProblem(false, true, true) == Problem::None);
+}
+
+void test_bright_around_windows() {  // bright from 30 min before a window opens to 60 min after it closes
+  const Window w[] = {{'a', 'i', 360, 420, 480}};
+  TEST_ASSERT_FALSE(isBright(true, 329, w, 1));
+  TEST_ASSERT_TRUE(isBright(true, 330, w, 1));
+  TEST_ASSERT_TRUE(isBright(true, 540, w, 1));
+  TEST_ASSERT_FALSE(isBright(true, 541, w, 1));
+  TEST_ASSERT_TRUE(isBright(true, 900, w, 0));   // no windows: bright
+  TEST_ASSERT_TRUE(isBright(false, 900, w, 1));  // clock not set: bright
+}
+
+void test_repeat_counts_from_last_counted_tap() {  // the app's dropRepeats rule: a repeat doesn't move the window
+  RepeatGuard g;
+  TEST_ASSERT_FALSE(g.isRepeat("AA", 1000, 3));
+  TEST_ASSERT_TRUE(g.isRepeat("AA", 1120, 3));   // 2 min after the counted tap
+  TEST_ASSERT_FALSE(g.isRepeat("AA", 1240, 3));  // 4 min after it: counts again
+  TEST_ASSERT_FALSE(g.isRepeat("BB", 1120, 3));  // another card
+  TEST_ASSERT_TRUE(g.isRepeat("BB", 1300, 10));
+}
+
+void test_band_texts() {
+  char b[28];
+  bandText(Result::OnTime, 432, b); TEST_ASSERT_EQUAL_STRING("ON TIME \xC2\xB7 7:12", b);
+  bandText(Result::Late, 461, b); TEST_ASSERT_EQUAL_STRING("LATE \xC2\xB7 7:41", b);
+  bandText(Result::Recorded, 905, b); TEST_ASSERT_EQUAL_STRING("RECORDED \xC2\xB7 3:05 PM", b);
+  bandText(Result::Recorded, 0, b); TEST_ASSERT_EQUAL_STRING("RECORDED \xC2\xB7 12:00 AM", b);
+  bandText(Result::Unknown, 432, b); TEST_ASSERT_EQUAL_STRING("SHOW YOUR ADVISER", b);
+  bandText(Result::AlreadyIn, 432, b); TEST_ASSERT_EQUAL_STRING("ALREADY IN \xC2\xB7 7:12", b);
+  bandText(Result::ClockNotSet, 432, b); TEST_ASSERT_EQUAL_STRING("SAVED \xC2\xB7 CHECK THE TIME", b);
+  bandText(Result::Full, 432, b); TEST_ASSERT_EQUAL_STRING("CONNECT TO WI-FI", b);
+  bandText(Result::StorageError, 432, b); TEST_ASSERT_EQUAL_STRING("RESTART THE READER", b);
+}
+
+void test_name_faces_count_characters_not_bytes() {  // Review Focus 4
+  char n[28];
+  TEST_ASSERT_TRUE(fitName("Ana R.", n, sizeof n) == NameFace::Big);
+  TEST_ASSERT_EQUAL_STRING("Ana R.", n);
+  TEST_ASSERT_TRUE(fitName("Pe\xC3\xB1" "a A.", n, sizeof n) == NameFace::Big);  // 6 letters, 7 bytes
+  TEST_ASSERT_TRUE(fitName("Juan Dela Cruz", n, sizeof n) == NameFace::Small);
+  TEST_ASSERT_EQUAL_STRING("Juan Dela Cruz", n);
+  TEST_ASSERT_TRUE(fitName("Maria Concepcion S.", n, sizeof n) == NameFace::Small);
+  TEST_ASSERT_EQUAL_STRING("Maria Concepcio...", n);
+  TEST_ASSERT_TRUE(fitName("Mar\xC3\xADa Concepci\xC3\xB3n S.", n, sizeof n) == NameFace::Small);  // never cut inside a letter
+  TEST_ASSERT_EQUAL_STRING("Mar\xC3\xADa Concepci\xC3\xB3...", n);  // 15 letters, then "..."
+}
+
+void test_date_text() {
+  char d[12];
+  dateText(1795019400, true, d);  // 2026-11-18T16:30Z = Thu 19 Nov in Manila
+  TEST_ASSERT_EQUAL_STRING("THU 19 NOV", d);
+  dateText(946684805, false, d);
+  TEST_ASSERT_EQUAL_STRING("-- --- ---", d);
+}
+
+void test_every_label_fits_the_band() {  // 124 px at 5 px a character
+  char b[28];
+  for (Result r : {Result::OnTime, Result::Late, Result::Recorded, Result::Unknown, Result::AlreadyIn, Result::ClockNotSet,
+                   Result::Full, Result::StorageError}) {
+    bandText(r, 1439, b);
+    TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(24, utf8Len(b), b);
+  }
+  for (Problem p : {Problem::NoWifi, Problem::Clock, Problem::Key}) TEST_ASSERT_LESS_OR_EQUAL(24, utf8Len(problemText(p)));
+  TEST_ASSERT_EQUAL(4, utf8Len("Pe\xC3\xB1" "a"));
+}
+
 void test_parse_roster_repeat_minutes() {  // the class's "ignore repeat" setting: only 1, 3, 5 or 10, else 3
   Card cards[1];
   Window w[1];
@@ -371,6 +453,14 @@ void setup() {
   RUN_TEST(test_parse_roster_maps_names_and_windows);
   RUN_TEST(test_parse_roster_bad_json_is_false);
   RUN_TEST(test_parse_roster_repeat_minutes);
+  RUN_TEST(test_wifi_bars);
+  RUN_TEST(test_top_problem_order);
+  RUN_TEST(test_bright_around_windows);
+  RUN_TEST(test_repeat_counts_from_last_counted_tap);
+  RUN_TEST(test_band_texts);
+  RUN_TEST(test_name_faces_count_characters_not_bytes);
+  RUN_TEST(test_date_text);
+  RUN_TEST(test_every_label_fits_the_band);
   RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
   RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
   RUN_TEST(test_screen_lines_fit_the_display);
