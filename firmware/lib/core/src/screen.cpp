@@ -66,6 +66,8 @@ void bandText(Result r, uint16_t minute, char out[28]) {
     case Result::ClockNotSet: snprintf(out, 28, "%s", KL_MSG_BAND_CLOCK); break;
     case Result::Full: snprintf(out, 28, "%s", KL_MSG_BAND_FULL); break;
     case Result::StorageError: snprintf(out, 28, "%s", KL_MSG_BAND_STORAGE); break;
+    case Result::Registered: snprintf(out, 28, "%s", KL_MSG_BAND_REGISTERED); break;
+    case Result::Checking: snprintf(out, 28, "%s", KL_MSG_BAND_CHECKING); break;
   }
 }
 
@@ -118,6 +120,15 @@ void Screen::block(Result r, uint32_t ms) {
   force_ = true;
 }
 
+void Screen::checking(uint32_t ms) {
+  seq_ = Seq::Check;
+  result_ = Result::Checking;
+  start_ = ms;
+  tapped_ = true;
+  lastTap_ = ms;
+  force_ = true;
+}
+
 Frame Screen::frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool full, Problem p) {
   Frame f{Scene::Idle, Phase::None, 0, result_, 0, 0, 0, 0, false};
   moving_ = false;
@@ -131,7 +142,13 @@ Frame Screen::frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool 
   static const Step kBlock[] = {{Phase::Hold, 2500}};
   const Step* steps = seq_ == Seq::Tap ? kTap : seq_ == Seq::Repeat ? kRepeat : kBlock;
   const size_t n = seq_ == Seq::Tap ? 5 : seq_ == Seq::Repeat ? 3 : 1;
-  if (seq_ != Seq::None) {
+  if (seq_ == Seq::Check) {
+    static constexpr uint32_t kSpinMs = 1200;
+    f.scene = Scene::Checking;
+    f.t = static_cast<float>(static_cast<uint32_t>(since(ms, start_)) % kSpinMs) / kSpinMs;
+    lastTap_ = ms;  // keeps a dim screen awake while it checks
+    moving_ = true;
+  } else if (seq_ != Seq::None) {
     const int32_t el = since(ms, start_);
     int32_t begin = 0;
     for (size_t i = 0; i < n && seq_ != Seq::None; i++) {

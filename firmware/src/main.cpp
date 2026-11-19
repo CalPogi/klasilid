@@ -36,6 +36,11 @@ static View view{};
 static bool setupMode = false;     // no school Wi-Fi saved: the setup screen shows
 static bool storageDead = false;   // the tap log couldn't open: Storage error until a restart
 static String hotspotName;
+// An unknown card while online: the screen says "Checking card" while the class list is fetched again (the teacher
+// may be registering it in the app right now). Found: its name and "Card registered". Not by checkUntil: Unknown.
+static char checkUid[21] = "";
+static uint32_t checkUntil = 0;
+static constexpr uint32_t kCheckMs = 20000;
 
 void timeText(uint32_t unix, char out[12]) {
   if (!clockLooksValid(unix)) {
@@ -123,6 +128,20 @@ static void handleTap(const char* uid) {
   char name[24];
   const bool known = rostercache::nameFor(uid, name, sizeof name);
   const Result r = judge(uid, now, known, t0 / 1000);
+  checkUid[0] = 0;
+  if (r == Result::Unknown && wifi::online() && !uploader::rejected()) {
+    buzzer::tick();
+    strncpy(checkUid, uid, sizeof checkUid - 1);
+    checkUntil = millis() + kCheckMs;
+    rosterfetch::checkSoon();
+    bandText(Result::Checking, 0, view.band);
+    screen.checking(millis());
+    drawNow(millis());
+    uploader::kick();  // the app needs this tap to register the card
+    Serial.printf("tap %s seq %lu: unknown, checking (%lu ms to feedback)\n", uid, static_cast<unsigned long>(seq),
+                  static_cast<unsigned long>(millis() - t0));
+    return;
+  }
   if (r == Result::Unknown) buzzer::unknown();
   else if (r == Result::AlreadyIn) buzzer::tick();
   else buzzer::ok();
@@ -196,9 +215,26 @@ void setup() {
   display::boot(kBootSteps, kBootSteps, 1);
 }
 
+// While "Checking card": the answer shows as soon as the fetched class list has the card, or Unknown at the deadline.
+static void checkTick() {
+  if (!checkUid[0]) return;
+  char name[24];
+  const bool found = rostercache::nameFor(checkUid, name, sizeof name);
+  if (!found && static_cast<int32_t>(millis() - checkUntil) < 0) return;
+  const Result r = found ? Result::Registered : Result::Unknown;
+  if (found) buzzer::ok();
+  else buzzer::unknown();
+  view.face = fitName(found ? name : "", view.name, sizeof view.name);
+  bandText(r, 0, view.band);
+  screen.tap(r, millis());
+  Serial.printf("card %s: %s\n", checkUid, found ? "registered" : "still not registered");
+  checkUid[0] = 0;
+}
+
 void loop() {
   char uid[21];
   if (!storageDead && rfid::poll(uid)) handleTap(uid);
+  checkTick();
   const uint32_t ms = millis();
   if (screen.due(ms)) drawNow(ms);
   delay(2);

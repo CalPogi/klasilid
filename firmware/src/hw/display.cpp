@@ -261,6 +261,23 @@ static void tapScene(const View& v, const Frame& f) {
   }
 }
 
+// ---- an unknown card while online: asking the app whether it was just registered ----
+static void checkingScene(const View& v, const Frame& f) {
+  statusBar(v, 0);
+  const int head = static_cast<int>(f.t * 8);  // 8 dots round a circle; the bright one runs, two fade behind it
+  for (int i = 0; i < 8; i++) {
+    const float a = i * 0.785398f - 1.570796f;
+    const int x = 64 + static_cast<int>(roundf(6 * cosf(a))), y = 25 + static_cast<int>(roundf(6 * sinf(a)));
+    const int behind = (head - i + 8) % 8;
+    if (behind == 0) oled.drawDisc(x, y, 2);
+    else if (behind <= 2) oled.drawDisc(x, y, 1);
+    else oled.drawPixel(x, y);
+  }
+  oled.setFont(TITLE);
+  centered("Checking card", 45);
+  bandContent(v, Result::Checking, true, 0);
+}
+
 // ---- problems that stop taps ----
 static void blockedScene(const View& v, const Frame& f) {
   const bool full = f.result == Result::Full;
@@ -338,6 +355,7 @@ void display::draw(const Frame& f, const View& v) {
     case Scene::Tap:
     case Scene::Repeat: tapScene(v, f); break;
     case Scene::Blocked: blockedScene(v, f); break;
+    case Scene::Checking: checkingScene(v, f); break;
   }
   oled.sendBuffer();
 }

@@ -31,7 +31,8 @@ class RepeatGuard {
   int next_ = 0;
 };
 
-enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError };
+// Checking: an unknown card while online, until the class list is fetched again; Registered: it was there.
+enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError, Registered, Checking };
 void bandText(Result r, uint16_t minute, char out[28]);  // the result band, e.g. "ON TIME · 7:12"
 
 // Names up to 10 letters use the big face, up to 18 the small one; longer ones are cut to 15 letters and "...".
@@ -41,7 +42,7 @@ NameFace fitName(const char* name, char* out, size_t cap);
 void dateText(uint32_t unix, bool clockValid, char out[12]);  // "THU 19 NOV" (Manila), or "-- --- ---"
 
 // ---- The timeline: which scene shows and where each animation is (design §5, boards "Reader screen: …") ----
-enum class Scene : uint8_t { Idle, Dim, Setup, Tap, Repeat, Blocked };  // Blocked: Reader full / Storage error
+enum class Scene : uint8_t { Idle, Dim, Setup, Tap, Repeat, Blocked, Checking };  // Blocked: Reader full / Storage error
 enum class Phase : uint8_t { None, Grow, Fold, Rise, Hold, Leave };
 // t: progress 0–1 within the phase. digitRoll / msgRoll: progress 0–1 of a roll, 0 when not rolling.
 // showProblem: the idle button shows the problem (or rolls back from it when msgRoll > 0).
@@ -54,13 +55,14 @@ class Screen {
  public:
   void tap(Result r, uint32_t ms);    // a tap's result (AlreadyIn: the shorter Repeat sequence); cuts in at once
   void block(Result r, uint32_t ms);  // Full or StorageError on a tap: shown 2.5 s, no flash
+  void checking(uint32_t ms);         // "Checking card" until tap() gives the answer (t: a 1.2 s spinner cycle)
   // minute: Manila minute of the day (drift and digit roll); full: the log is full (Reader full until it clears).
   Frame frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool full, Problem p);
   bool due(uint32_t ms) const;  // time to draw again: 40 ms while anything moves, else at the next change or 1 s
   void drawn(uint32_t ms);      // the frame from the last frame() call went out at ms
 
  private:
-  enum class Seq : uint8_t { None, Tap, Repeat, Block };
+  enum class Seq : uint8_t { None, Tap, Repeat, Block, Check };
   Seq seq_ = Seq::None;
   Result result_ = Result::OnTime;
   uint32_t start_ = 0;

@@ -334,6 +334,8 @@ void test_band_texts() {
   bandText(Result::ClockNotSet, 432, b); TEST_ASSERT_EQUAL_STRING("SAVED \xC2\xB7 CHECK THE TIME", b);
   bandText(Result::Full, 432, b); TEST_ASSERT_EQUAL_STRING("CONNECT TO WI-FI", b);
   bandText(Result::StorageError, 432, b); TEST_ASSERT_EQUAL_STRING("RESTART THE READER", b);
+  bandText(Result::Registered, 432, b); TEST_ASSERT_EQUAL_STRING("CARD REGISTERED", b);
+  bandText(Result::Checking, 432, b); TEST_ASSERT_EQUAL_STRING("CHECKING WITH THE APP", b);
 }
 
 void test_name_faces_count_characters_not_bytes() {  // Review Focus 4
@@ -360,7 +362,7 @@ void test_date_text() {
 void test_every_label_fits_the_band() {  // 124 px at 5 px a character
   char b[28];
   for (Result r : {Result::OnTime, Result::Late, Result::Recorded, Result::Unknown, Result::AlreadyIn, Result::ClockNotSet,
-                   Result::Full, Result::StorageError}) {
+                   Result::Full, Result::StorageError, Result::Registered, Result::Checking}) {
     bandText(r, 1439, b);
     TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(24, utf8Len(b), b);
   }
@@ -411,6 +413,21 @@ void test_blocked_for_two_and_a_half_seconds() {
   const Frame f = fr(s, 2400);
   TEST_ASSERT_TRUE(f.scene == Scene::Blocked && f.result == Result::StorageError);
   TEST_ASSERT_TRUE(fr(s, 2600).scene == Scene::Idle);
+}
+
+// An unknown card while online: "Checking card" moves until the reader knows (main.cpp gives it up to 20 s).
+void test_checking_moves_until_the_answer_cuts_in() {
+  Screen s;
+  s.checking(1000);
+  Frame f = fr(s, 1500);
+  TEST_ASSERT_TRUE(f.scene == Scene::Checking && f.result == Result::Checking);
+  TEST_ASSERT_TRUE(f.t >= 0 && f.t < 1);
+  s.drawn(1500);
+  TEST_ASSERT_TRUE(s.due(1540));  // animates at the full frame rate
+  TEST_ASSERT_TRUE(fr(s, 30000).scene == Scene::Checking);  // the screen itself never gives up
+  s.tap(Result::Registered, 30000);
+  f = fr(s, 30050);
+  TEST_ASSERT_TRUE(f.scene == Scene::Tap && f.result == Result::Registered);
 }
 
 void test_full_stays_until_space() {
@@ -582,6 +599,7 @@ void setup() {
   RUN_TEST(test_repeat_timeline);
   RUN_TEST(test_a_new_tap_cuts_in_from_any_phase);
   RUN_TEST(test_blocked_for_two_and_a_half_seconds);
+  RUN_TEST(test_checking_moves_until_the_answer_cuts_in);
   RUN_TEST(test_full_stays_until_space);
   RUN_TEST(test_idle_rolls_the_problem_message);
   RUN_TEST(test_dim_and_wake);

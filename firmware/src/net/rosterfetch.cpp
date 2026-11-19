@@ -12,6 +12,13 @@ static Card cards[120];
 static Window windows[8];
 static bool fetchedThisConnection = false;
 static uint32_t lastFetchMs = 0;
+static volatile uint32_t checkUntilMs = 0;  // set by the tap loop (core 1), read here (core 0)
+static volatile bool checkNow = false;
+
+void rosterfetch::checkSoon() {
+  checkUntilMs = millis() + 20000;
+  checkNow = true;
+}
 
 static bool apply(const char* json) {
   size_t nc = 0, nw = 0;
@@ -37,7 +44,10 @@ void rosterfetch::tick() {
     return;
   }
   if (cfg.server.isEmpty() || cfg.deviceKey.isEmpty() || !clockLooksValid(static_cast<uint32_t>(time(nullptr)))) return;
-  if (fetchedThisConnection && millis() - lastFetchMs < 10 * 60000) return;
+  const bool checking = static_cast<int32_t>(checkUntilMs - millis()) > 0;
+  const uint32_t every = checking ? 3000 : 10 * 60000;
+  if (fetchedThisConnection && !checkNow && millis() - lastFetchMs < every) return;
+  checkNow = false;
   fetchedThisConnection = true;
   lastFetchMs = millis();
   String resp;
