@@ -1,6 +1,9 @@
 // Fakes shared by the admin tests. Names, codes and keys are made up.
 import type { Overview } from '../src/lib/admin';
 
+/** A stand-in QR image (a grey square), in the data-URL shape Supabase returns. */
+export const QR = "data:image/svg+xml;utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4'><rect width='4' height='4' fill='%23ccc'/></svg>";
+
 export const OVERVIEW: Overview = {
   schools: [{ id: 'school-1', name: 'San Isidro West Central School', codeMadeAt: '2026-11-18T03:00:00Z', advisers: 2 }],
   teachers: [
@@ -68,7 +71,7 @@ export function fakeMfa(opts: { levels?: [string, string]; factors?: { id: strin
     async unenroll({ factorId }: { factorId: string }) { calls.push(`unenroll ${factorId}`); return { data: {}, error: null }; },
     async enroll() {
       calls.push('enroll');
-      return { data: { id: 'f-new', totp: { qr_code: 'data:image/svg+xml;utf-8,<svg></svg>', secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://x' } }, error: null };
+      return { data: { id: 'f-new', totp: { qr_code: QR, secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://x' } }, error: null };
     },
     async challengeAndVerify({ factorId, code }: { factorId: string; code: string }) {
       calls.push(`verify ${factorId} ${code}`);

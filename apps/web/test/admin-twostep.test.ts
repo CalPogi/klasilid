@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, it, vi } from 'vitest';
 import { startSetup, twoStepNeed } from '../src/lib/admin';
 import TwoStep from '../src/pages/admin/TwoStep.svelte';
-import { fakeMfa } from './admin-helpers';
+import { fakeMfa, QR } from './admin-helpers';
 
 it('twoStepNeed maps the assurance levels', async () => {
   expect(await twoStepNeed(fakeMfa({ levels: ['aal2', 'aal2'] }).sb)).toBe('done');
@@ -14,7 +14,7 @@ it('removes an unverified factor before enrolling again', async () => {
   const { sb, calls } = fakeMfa({ factors: [{ id: 'f-old', status: 'unverified' }] });
   const s = await startSetup(sb);
   expect(calls).toEqual(['unenroll f-old', 'enroll']);
-  expect(s).toEqual({ factorId: 'f-new', qr: 'data:image/svg+xml;utf-8,<svg></svg>', secret: 'JBSWY3DPEHPK3PXP' });
+  expect(s).toEqual({ factorId: 'f-new', qr: QR, secret: 'JBSWY3DPEHPK3PXP' });
 });
 
 it('setup shows the QR and the key, then calls ondone after a right code', async () => {

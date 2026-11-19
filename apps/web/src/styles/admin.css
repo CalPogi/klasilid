@@ -15,6 +15,7 @@
 .secret b { font-size: 16px; letter-spacing: .02em; word-break: break-all; font-variant-numeric: tabular-nums; }
 .secret b.big { font-size: 22px; letter-spacing: .06em; }
 .modal .box .actions.one, .sheet .actions.one { grid-template-columns: 1fr; }
+.modal .box:has(.secret) { width: min(460px, 100%); }
 .modal .box .warn, .sheet .warn { margin-top: 4px; }
 .adm-off { align-items: center; justify-content: space-between; }
 .adm-off .btn { width: auto; padding: 0 18px; }
