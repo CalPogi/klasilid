@@ -56,6 +56,7 @@
   let schoolYearId = $state('');
   let join: JoinSchool | undefined = $state();
   let refused = $state('');
+  let setupLater = $state(false); // "Finish later" pressed in the first-time setup
   // Online: a joining adviser's section is claimed on the server at Finish (lib/setup claimSection).
   const claim: ClaimPort | undefined = sb ? {
     rpc: async (fn, args) => ({ error: (await sb.rpc(fn, args)).error }),
@@ -184,7 +185,14 @@
     {#if !classId && firstSyncFailed}
       <div class="page on"><div class="cls-head"><div><h2>Connect once to load your class</h2><p>This device hasn't downloaded your class yet. Connect to the internet and it loads by itself.</p></div></div></div>
     {:else if !classId}
-      <Setup {db} {now} {join} {claim} {refused} onfinish={async () => { await refresh(); go('today'); sync(); }} />
+      <!-- "Finish later" hides the wizard (still mounted, so what was typed stays) and leaves a way back to it. -->
+      {#if setupLater}
+        <div class="page on"><div class="cls-head"><div><h2>Your class isn’t set up yet</h2><p>Set it up whenever you’re ready: your class, learners, seats and school hours.</p></div></div>
+          <button class="btn" type="button" style="width:auto;padding:0 18px" onclick={() => (setupLater = false)}>Set up your class</button></div>
+      {/if}
+      <div hidden={setupLater}>
+        <Setup {db} {now} {join} {claim} {refused} onlater={() => (setupLater = true)} onfinish={async () => { setupLater = false; await refresh(); go('today'); sync(); }} />
+      </div>
     {:else if r === 'setup'}
       <div class="page on"><div class="cls-head"><div><h2>Your class is already set up</h2><p>Tap times and the seat layout move to Settings in the next update.</p></div></div>
         <a class="btn ghost" href="#/today" style="width:auto;padding:0 18px">Back to Today</a></div>

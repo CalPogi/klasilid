@@ -11,8 +11,9 @@
   // Markup follows the mockup's first-time setup wizard (modal .box.wiz with five steps).
   // With `join` (signed up with a school code) the school is fixed, and so is the year when the school has one.
   // With `claim` (online) the section is claimed on the server at Finish; `refused` is why the server turned down an earlier try.
-  let { db, now, onfinish, join, claim, refused = '' }: {
-    db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void; join?: JoinSchool; claim?: ClaimPort; refused?: string;
+  // `onlater`: "Finish later" (or closing the wizard); the app hides it and keeps what was typed.
+  let { db, now, onfinish, onlater, join, claim, refused = '' }: {
+    db: KlasilidDb; now: () => Date; onfinish: (classId: string) => void; onlater?: () => void; join?: JoinSchool; claim?: ClaimPort; refused?: string;
   } = $props();
   // svelte-ignore state_referenced_locally
   let claimError = $state(refused);
@@ -57,7 +58,7 @@
     }
     onfinish(await applySetup(db, input, now(), join, claimed ?? undefined));
   }
-  const later = () => (location.hash = '#/today');
+  const later = () => (onlater ? onlater() : (location.hash = '#/today'));
 </script>
 
 <Modal labelledby="wzTitle" onclose={later} wide>

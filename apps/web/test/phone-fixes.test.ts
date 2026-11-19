@@ -38,8 +38,8 @@ it('I1: closing the setup wizard on a phone keeps what was entered', async () =>
   const section = await screen.findByLabelText('Section', {}, { timeout: 3000 }) as HTMLSelectElement;
   await fireEvent.change(section, { target: { value: 'Ruby' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
-  await vi.waitFor(() => expect(location.hash).toBe('#/today'));
-  await new Promise(r => setTimeout(r, 100));
+  // The wizard steps aside (it used to reopen at once: there's no class yet) and keeps what was typed.
+  await fireEvent.click(await screen.findByRole('button', { name: 'Set up your class' }));
   expect((screen.getByLabelText('Section') as HTMLSelectElement).value).toBe('Ruby');
 });
 

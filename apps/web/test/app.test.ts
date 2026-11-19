@@ -52,6 +52,19 @@ describe('owner', () => {
   });
 });
 
+it('Finish later closes the setup wizard and leaves a way back to it', async () => {
+  const db = openDb('t-' + crypto.randomUUID());
+  await db.meta.put({ key: 'user', value: { userId: 'u-1', displayName: "Ma'am Test" } });
+  const auth: AuthPort = { signIn: async () => ({ userId: 'u-1', displayName: '' }), signOut: async () => {} };
+  render(App, { deps: { db, mode: 'online', auth, remote: null } });
+  await screen.findByRole('dialog', {}, { timeout: 3000 });
+  await fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
+  expect(await screen.findByRole('heading', { name: 'Your class isn’t set up yet' })).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Set up your class' }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+});
+
 it('does not rerun the first-time wizard once a class exists (it would create a second class)', async () => {
   const db = openDb('t-' + crypto.randomUUID());
   await seedDemo(db, new Date());
