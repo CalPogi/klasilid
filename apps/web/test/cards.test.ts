@@ -27,6 +27,32 @@ it('an old deactivated card cannot be given to someone else either', async () =>
   expect(await assignCard(db, 'c', 'BBBBBBBB', NOW)).toMatchObject({ ok: false, reason: 'taken' });
 });
 
+it('a switched-off card tapped again for the same learner is turned back on', async () => {
+  const db = await classDb();
+  await replaceCard(db, 'a', NOW);
+  expect(await assignCard(db, 'a', 'aaaaaaaa', NOW)).toEqual({ ok: true });
+  const card = await db.cards.get('AAAAAAAA');
+  expect(card).toMatchObject({ learnerId: 'a', active: true });
+  expect(card?.replacedAt).toBeUndefined();
+  expect((await db.outbox.toArray()).at(-1)!.op).toEqual(
+    { kind: 'update', table: 'cards', match: { uid: 'AAAAAAAA' }, values: { active: true, replaced_at: null } });
+});
+
+it('turning an old card back on switches off the newer card the learner got meanwhile', async () => {
+  const db = await classDb();
+  await replaceCard(db, 'a', NOW);
+  expect(await assignCard(db, 'a', 'DD00EE11', NOW)).toEqual({ ok: true });
+  expect(await assignCard(db, 'a', 'AAAAAAAA', NOW)).toEqual({ ok: true });
+  expect(await db.cards.get('DD00EE11')).toMatchObject({ active: false });
+  expect(await db.cards.get('AAAAAAAA')).toMatchObject({ active: true });
+});
+
+it('a card that is still on for the learner is refused, so a double tap does nothing', async () => {
+  const db = await classDb();
+  expect(await assignCard(db, 'a', 'AAAAAAAA', NOW)).toMatchObject({ ok: false, reason: 'taken' });
+  expect(await db.outbox.count()).toBe(0);
+});
+
 it('replaceCard deactivates the old card so its taps no longer count for the learner', async () => {
   const db = await classDb();
   await replaceCard(db, 'a', NOW);

@@ -98,10 +98,24 @@ export async function transferOut(db: KlasilidDb, enrollmentId: string, lastDay:
 
 export type AssignResult = { ok: true } | { ok: false; reason: 'taken'; ownerName: string };
 
-/** Cards are never reassigned (taps are matched to cards), so any card already on file is refused. */
+/** Cards are never reassigned (taps are matched to cards), so a card already on file is refused, except one
+ *  switched off (Replace card) and tapped again for the same learner: it is turned back on, and any newer card that
+ *  learner got meanwhile is switched off, so the learner keeps one working card. */
 export async function assignCard(db: KlasilidDb, learnerId: string, uid: string, now: Date): Promise<AssignResult> {
   const id = uid.trim().toUpperCase();
   const existing = await db.cards.get(id);
+  if (existing && existing.learnerId === learnerId && !existing.active) {
+    const at = now.toISOString();
+    await db.transaction('rw', db.cards, db.outbox, async () => {
+      for (const c of (await db.cards.where('learnerId').equals(learnerId).toArray()).filter(c => c.active)) {
+        await db.cards.update(c.uid, { active: false, replacedAt: at });
+        await db.outbox.add({ createdAt: at, op: { kind: 'update', table: 'cards', match: { uid: c.uid }, values: { active: false, replaced_at: at } } });
+      }
+      await db.cards.update(id, { active: true, replacedAt: undefined });
+      await db.outbox.add({ createdAt: at, op: { kind: 'update', table: 'cards', match: { uid: id }, values: { active: true, replaced_at: null } } });
+    });
+    return { ok: true };
+  }
   if (existing) {
     const owner = await db.learners.get(existing.learnerId);
     return { ok: false, reason: 'taken', ownerName: owner ? `${owner.firstName} ${owner.lastName}` : 'another learner' };
