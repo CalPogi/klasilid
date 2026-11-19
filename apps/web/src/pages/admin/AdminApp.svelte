@@ -6,6 +6,8 @@
   import { closeOnBack } from '../../lib/back';
   import { phone } from '../../lib/layout';
   import AdminReaders from './AdminReaders.svelte';
+  import AdminSchools from './AdminSchools.svelte';
+  import AdminTeachers from './AdminTeachers.svelte';
   import TwoStep from './TwoStep.svelte';
 
   // The owner's admin section (docs/2026-11-19-admin-design.md). Online only: nothing here touches the device's
@@ -58,6 +60,10 @@
     <div class="note adm-off" role="status"><span>{OFFLINE}</span><button type="button" class="btn" onclick={() => { stage = 'check'; start(); }}>Retry</button></div>
   {:else if tab === 'readers'}
     <AdminReaders {overview} {call} {now} onchange={load} />
+  {:else if tab === 'schools'}
+    <AdminSchools {overview} {call} onchange={load} />
+  {:else}
+    <AdminTeachers {overview} {call} onchange={load} />
   {/if}
 {/snippet}
 
