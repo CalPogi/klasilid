@@ -40,7 +40,6 @@ static String hotspotName;
 // An unknown card while online: the screen says "Checking card" while the class list is fetched again (the teacher
 // may be registering it in the app right now). Found: its name and "Card registered". Not by checkUntil: Unknown.
 static char checkUid[21] = "";
-static uint32_t checkUptime = 0;  // when that card was tapped (seconds since boot)
 static uint32_t checkUntil = 0;
 static constexpr uint32_t kCheckMs = 20000;
 
@@ -139,7 +138,6 @@ static void handleTap(const char* uid) {
   if (r == Result::Unknown && rosterfetch::canFetch() && !uploader::rejected()) {
     buzzer::tick();
     strncpy(checkUid, uid, sizeof checkUid - 1);
-    checkUptime = up;
     checkUntil = millis() + kCheckMs;
     rosterfetch::checkSoon();
     bandText(Result::Checking, 0, view.band);
@@ -230,13 +228,10 @@ static void checkTick() {
   const bool found = rostercache::nameFor(checkUid, name, sizeof name);
   if (!found && static_cast<int32_t>(millis() - checkUntil) < 0) return;
   const Result r = found ? Result::Registered : Result::Unknown;
-  if (found) {
-    buzzer::ok();
-    // The app counts this tap: remember it, so a second tap within the repeat minutes shows Already in (review #7).
-    repeats.isRepeat(checkUid, checkUptime, rostercache::repeatMinutes());
-  } else {
-    buzzer::unknown();
-  }
+  // The registering tap doesn't count as attendance (owner, Nov 2026): the learner's next tap is their first, so it
+  // isn't recorded for Already in.
+  if (found) buzzer::ok();
+  else buzzer::unknown();
   view.face = fitName(found ? name : "", view.name, sizeof view.name);
   bandText(r, 0, view.band);
   screen.tap(r, millis());
