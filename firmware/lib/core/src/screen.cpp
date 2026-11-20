@@ -70,6 +70,10 @@ void bandText(Result r, uint16_t minute, char out[28]) {
     case Result::StorageError: snprintf(out, 28, "%s", KL_MSG_BAND_STORAGE); break;
     case Result::Registered: snprintf(out, 28, "%s", KL_MSG_BAND_REGISTERED); break;
     case Result::Checking: snprintf(out, 28, "%s", KL_MSG_BAND_CHECKING); break;
+    case Result::TimeOut: clock12(minute, t, sizeof t, false); snprintf(out, 28, "TIME OUT " KL_DOT " %s", t); break;
+    case Result::AlreadyOut:
+      if (minute == kNoTime) { snprintf(out, 28, "ALREADY OUT"); break; }
+      clock12(minute, t, sizeof t, false); snprintf(out, 28, "ALREADY OUT " KL_DOT " %s", t); break;
   }
 }
 
@@ -105,7 +109,7 @@ static constexpr uint32_t kWakeMs = 10000;    // a tap keeps a dim screen bright
 static int32_t since(uint32_t now, uint32_t then) { return static_cast<int32_t>(now - then); }  // safe across millis wrap
 
 void Screen::tap(Result r, uint32_t ms) {
-  seq_ = r == Result::AlreadyIn ? Seq::Repeat : Seq::Tap;
+  seq_ = r == Result::AlreadyIn || r == Result::AlreadyOut ? Seq::Repeat : Seq::Tap;
   result_ = r;
   start_ = ms;
   tapped_ = true;
@@ -216,6 +220,52 @@ void Screen::drawn(uint32_t ms) {
   force_ = false;
   nextDue_ = ms + (moving_ ? kFrameMs : 1000);
   if (!moving_ && hasNext_ && since(nextDue_, nextEvent_) > 0) nextDue_ = nextEvent_;
+}
+
+Result DayBook::judge(const char* uid, uint32_t unix, uint16_t repeatMinutes, const Window* w, size_t n) {
+  const uint32_t day = (unix + 8 * 3600) / 86400;  // Manila day
+  if (day != day_) day_ = day, count_ = 0;
+  Entry* e = nullptr;
+  for (int i = 0; i < count_ && !e; i++) if (strcmp(e_[i].uid, uid) == 0) e = &e_[i];
+  Entry scratch{};
+  if (!e) {
+    e = count_ < kCards ? &e_[count_++] : &scratch;
+    *e = Entry{};
+    strncpy(e->uid, uid, sizeof e->uid - 1);
+    e->lastUnix = 0;
+  }
+  if (e->lastUnix && unix - e->lastUnix < static_cast<uint32_t>(repeatMinutes) * 60) return e->lastOut ? Result::AlreadyOut : Result::AlreadyIn;
+  e->lastUnix = unix;
+  e->lastOut = false;
+
+  const uint16_t m = static_cast<uint16_t>(((unix + 8 * 3600) % 86400) / 60);
+  const auto bit = [](char session, char kind) { return static_cast<uint8_t>(1 << ((session == 'p' ? 2 : 0) + (kind == 'o' ? 1 : 0))); };
+  for (size_t i = 0; i < n; i++) {
+    if (m < w[i].opens || m > w[i].closes) continue;
+    const uint8_t in = bit(w[i].session, 'i'), out = bit(w[i].session, 'o');
+    if (w[i].kind == 'i') {
+      if (e->used & in) return Result::AlreadyIn;
+      e->used |= in;
+      return w[i].lateAfter == KL_NO_LATE || m <= w[i].lateAfter ? Result::OnTime : Result::Late;
+    }
+    if (!(e->used & in)) return Result::Recorded;
+    e->lastOut = true;
+    if (e->used & out) return Result::AlreadyOut;
+    e->used |= out;
+    return Result::TimeOut;
+  }
+  // Between an in-window's close and the next window's open, with no time-in yet: a late arrival.
+  for (size_t i = 0; i < n; i++) {
+    if (w[i].kind != 'i' || m <= w[i].closes) continue;
+    uint16_t next = 24 * 60;
+    for (size_t k = 0; k < n; k++) if (w[k].opens > w[i].closes && w[k].opens < next) next = w[k].opens;
+    if (m >= next) continue;
+    const uint8_t in = bit(w[i].session, 'i');
+    if (e->used & in) break;
+    e->used |= in;
+    return Result::Late;
+  }
+  return Result::Recorded;
 }
 
 void dateText(uint32_t unix, bool clockValid, char out[12]) {

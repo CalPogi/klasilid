@@ -31,7 +31,8 @@ TapLog tapLog(storage, kCapacity);
 SemaphoreHandle_t logMutex;
 
 static Debounce debounce(3);
-static RepeatGuard repeats;
+static RepeatGuard repeats;  // clock not set: repeats by uptime only
+static DayBook book;          // clock set: one result per slot, as the app counts it
 static Screen screen;
 static View view{};
 static bool setupMode = false;     // no school Wi-Fi saved: the setup screen shows
@@ -102,11 +103,33 @@ static void drawNow(uint32_t ms) {
 
 static Result judge(const char* uid, uint32_t now, bool known, uint32_t uptimeSec) {
   if (!known) return Result::Unknown;
-  if (repeats.isRepeat(uid, uptimeSec, rostercache::repeatMinutes())) return Result::AlreadyIn;
-  if (!clockLooksValid(now)) return Result::ClockNotSet;
+  if (!clockLooksValid(now)) return repeats.isRepeat(uid, uptimeSec, rostercache::repeatMinutes()) ? Result::AlreadyIn : Result::ClockNotSet;
   Window w[8];
-  const char* s = statusFor(manilaMinute(now), w, rostercache::windows(w, 8));
-  return strcmp(s, "On time") == 0 ? Result::OnTime : strcmp(s, "Late") == 0 ? Result::Late : Result::Recorded;
+  return book.judge(uid, now, rostercache::repeatMinutes(), w, rostercache::windows(w, 8));
+}
+
+// After a restart, today's saved taps go through the day book again, so a card that already timed in still shows
+// Already in. ponytail: a card's registering tap is replayed too (it was unknown then), so on the day it was registered
+// a restart makes its next tap show Already in instead of On time; the app's records are right either way.
+static void rebuildDay() {
+  const uint32_t now = rtc::now();
+  if (!clockLooksValid(now)) return;
+  Window w[8];
+  const size_t nw = rostercache::windows(w, 8);
+  const uint32_t today = (now + 8 * 3600) / 86400;
+  TapRec recs[16];
+  size_t got, replayed = 0;
+  uint32_t after = tapLog.nextSeq() > 1000 ? tapLog.nextSeq() - 1000 : 0;  // a day is at most ~250 taps
+  while ((got = tapLog.since(after, recs, 16)) > 0) {
+    for (size_t i = 0; i < got; i++) {
+      char name[24];
+      if ((recs[i].unix + 8 * 3600) / 86400 != today || !rostercache::nameFor(recs[i].uid, name, sizeof name)) continue;
+      book.judge(recs[i].uid, recs[i].unix, rostercache::repeatMinutes(), w, nw);
+      replayed++;
+    }
+    after = recs[got - 1].seq;
+  }
+  Serial.printf("day: %u of today's taps replayed\n", static_cast<unsigned>(replayed));
 }
 
 // Seconds since boot from the 64-bit timer: millis()/1000 wrapped at 4,294,967 s (49.7 days), and a card held on
@@ -149,7 +172,7 @@ static void handleTap(const char* uid) {
     return;
   }
   if (r == Result::Unknown) buzzer::unknown();
-  else if (r == Result::AlreadyIn) buzzer::tick();
+  else if (r == Result::AlreadyIn || r == Result::AlreadyOut) buzzer::tick();
   else buzzer::ok();
   view.face = fitName(known ? name : "", view.name, sizeof view.name);
   bandText(r, clockLooksValid(now) ? manilaMinute(now) : kNoTime, view.band);
@@ -209,6 +232,7 @@ void setup() {
   display::boot(3, kBootSteps, 1);
   Serial.printf("log: %u unsent, next seq %lu\n", static_cast<unsigned>(tapLog.unsentCount()), static_cast<unsigned long>(tapLog.nextSeq()));
   rosterfetch::loadCached();
+  rebuildDay();
   display::boot(4, kBootSteps, 1);
   const Config cfg = config::load();
   setupMode = cfg.ssid.isEmpty();

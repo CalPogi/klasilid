@@ -25,14 +25,15 @@ class RepeatGuard {
   bool isRepeat(const char* uid, uint32_t uptimeSec, uint16_t repeatMinutes);
 
  private:
-  static constexpr int kSlots = 32;  // cards remembered; a class is about 40
+  static constexpr int kSlots = 64;  // cards remembered; a class is about 40-50
   struct Seen { char uid[21]; uint32_t at; bool used; };
   Seen seen_[kSlots] = {};
   int next_ = 0;
 };
 
 // Checking: an unknown card while online, until the class list is fetched again; Registered: it was there.
-enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError, Registered, Checking };
+enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError, Registered, Checking,
+                              TimeOut, AlreadyOut };
 constexpr uint16_t kNoTime = 0xFFFF;  // minute when the clock isn't set: "ALREADY IN" shows no time
 void bandText(Result r, uint16_t minute, char out[28]);  // the result band, e.g. "ON TIME · 7:12"
 
@@ -80,6 +81,25 @@ class Screen {
   uint32_t nextDue_ = 0;
 };
 size_t utf8Len(const char* s);
+
+// What the app will make of a tap (packages/core status.ts computeDay), so the screen agrees with the records: each
+// card gets one morning time-in, one time-out, one afternoon time-in and one time-out a day.
+//   in-window: first tap of the session OnTime/Late, then AlreadyIn;  out-window: first tap after a time-in TimeOut,
+//   then AlreadyOut (no time-in yet: Recorded, the app lists it for review);  after an in-window closed with no time-in:
+//   Late;  anything else: Recorded. A tap within repeatMinutes of the card's last counted tap is a repeat (AlreadyIn,
+//   or AlreadyOut after a time-out) and doesn't count, as the app's dropRepeats. Needs a real date; starts over each
+//   Manila day. 128 cards, more than the class list holds (120); past that, taps are judged but not remembered.
+class DayBook {
+ public:
+  Result judge(const char* uid, uint32_t unix, uint16_t repeatMinutes, const Window* w, size_t n);
+
+ private:
+  struct Entry { char uid[21]; uint8_t used; bool lastOut; uint32_t lastUnix; };  // used: am in, am out, pm in, pm out
+  static constexpr int kCards = 128;
+  Entry e_[kCards] = {};
+  int count_ = 0;
+  uint32_t day_ = 0xFFFFFFFF;
+};
 
 // A window of `len` ms on millis(), safe across its wrap: never running before start(), and once over, over for good.
 class Countdown {

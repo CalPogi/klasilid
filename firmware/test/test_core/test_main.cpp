@@ -363,7 +363,7 @@ void test_date_text() {
 void test_every_label_fits_the_band() {  // 124 px at 5 px a character
   char b[28];
   for (Result r : {Result::OnTime, Result::Late, Result::Recorded, Result::Unknown, Result::AlreadyIn, Result::ClockNotSet,
-                   Result::Full, Result::StorageError, Result::Registered, Result::Checking}) {
+                   Result::Full, Result::StorageError, Result::Registered, Result::Checking, Result::TimeOut, Result::AlreadyOut}) {
     bandText(r, 1439, b);
     TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(24, utf8Len(b), b);
   }
@@ -534,6 +534,52 @@ void test_parse_roster_repeat_minutes() {  // the class's "ignore repeat" settin
   TEST_ASSERT_EQUAL_UINT16(3, rep);
 }
 
+
+// ---- one result per slot (matches packages/core computeDay): morning in/out, afternoon in/out ----
+static const Window kDay[] = {
+  {'a', 'i', 420, 435, 450},   // 7:00-7:30, late after 7:15
+  {'a', 'o', 690, KL_NO_LATE, 720},  // 11:30-12:00
+  {'p', 'i', 750, 765, 780},   // 12:30-13:00, late after 12:45
+  {'p', 'o', 960, KL_NO_LATE, 990},  // 16:00-16:30
+};
+static uint32_t manila(uint32_t day, uint16_t minute) { return 1794441600u + day * 86400u + minute * 60u - 8 * 3600u; }  // minute `minute` of day `day` after 2026-11-12, Manila time
+
+void test_daybook_one_result_per_slot() {
+  DayBook b;
+  const auto j = [&](uint32_t day, uint16_t m) { return b.judge("CARD0001", manila(day, m), 3, kDay, 4); };
+  TEST_ASSERT_TRUE(j(0, 425) == Result::OnTime);      // 7:05
+  TEST_ASSERT_TRUE(j(0, 426) == Result::AlreadyIn);   // repeat within 3 min
+  TEST_ASSERT_TRUE(j(0, 440) == Result::AlreadyIn);   // 7:20, same slot used
+  TEST_ASSERT_TRUE(j(0, 600) == Result::Recorded);    // 10:00, outside every slot: the app lists it for review
+  TEST_ASSERT_TRUE(j(0, 695) == Result::TimeOut);     // 11:35
+  TEST_ASSERT_TRUE(j(0, 696) == Result::AlreadyOut);  // repeat after a time-out
+  TEST_ASSERT_TRUE(j(0, 705) == Result::AlreadyOut);  // 11:45, same slot used
+  TEST_ASSERT_TRUE(j(0, 770) == Result::Late);        // 12:50
+  TEST_ASSERT_TRUE(j(0, 965) == Result::TimeOut);     // 16:05
+  TEST_ASSERT_TRUE(j(1, 425) == Result::OnTime);      // next day starts over
+}
+
+void test_daybook_out_without_in_and_late_after_closing() {
+  DayBook b;
+  TEST_ASSERT_TRUE(b.judge("CARD0002", manila(0, 695), 3, kDay, 4) == Result::Recorded);  // time-out with no time-in
+  TEST_ASSERT_TRUE(b.judge("CARD0003", manila(0, 470), 3, kDay, 4) == Result::Late);      // 7:50, after closing
+  TEST_ASSERT_TRUE(b.judge("CARD0003", manila(0, 480), 3, kDay, 4) == Result::Recorded);  // 8:00, already in
+  TEST_ASSERT_TRUE(b.judge("CARD0004", manila(0, 425), 3, kDay, 4) == Result::OnTime);    // cards are kept apart
+}
+
+void test_band_texts_for_time_out() {
+  char b[28];
+  bandText(Result::TimeOut, 705, b); TEST_ASSERT_EQUAL_STRING("TIME OUT \xC2\xB7 11:45", b);
+  bandText(Result::AlreadyOut, 705, b); TEST_ASSERT_EQUAL_STRING("ALREADY OUT \xC2\xB7 11:45", b);
+  bandText(Result::AlreadyOut, kNoTime, b); TEST_ASSERT_EQUAL_STRING("ALREADY OUT", b);
+}
+
+void test_already_out_uses_the_short_sequence() {
+  Screen s;
+  s.tap(Result::AlreadyOut, 0);
+  TEST_ASSERT_TRUE(fr(s, 100).scene == Scene::Repeat);
+}
+
 // ---- Review I1: setup form checks and pairing-code lockout ----
 void test_setup_needs_https_and_the_key_again_when_the_server_changes() {
   SetupForm ok{"SchoolWiFi", "https://abc.supabase.co", "KD-0001", "k3y", "12345678"};
@@ -628,6 +674,10 @@ void setup() {
   RUN_TEST(test_digit_roll_and_drift);
   RUN_TEST(test_frame_rate);
   RUN_TEST(test_timing_survives_millis_wrap);
+  RUN_TEST(test_daybook_one_result_per_slot);
+  RUN_TEST(test_daybook_out_without_in_and_late_after_closing);
+  RUN_TEST(test_band_texts_for_time_out);
+  RUN_TEST(test_already_out_uses_the_short_sequence);
   RUN_TEST(test_setup_needs_https_and_the_key_again_when_the_server_changes);
   RUN_TEST(test_lockout_after_five_wrong_codes_for_a_minute);
   RUN_TEST(test_screen_lines_fit_the_display);
