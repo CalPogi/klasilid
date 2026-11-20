@@ -20,3 +20,4 @@ void buzzer::unknown() {
   beep(80);
 }
 void buzzer::error() { beep(600); }
+void buzzer::tick() { beep(15); }

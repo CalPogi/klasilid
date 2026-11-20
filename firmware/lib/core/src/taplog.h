@@ -33,6 +33,7 @@ class MemoryStorage : public Storage {
   bool saveMeta(uint32_t nextSeq) override;
   void corrupt(uint32_t slot);
   bool failMetaWrites = false;
+  int metaWrites = 0;  // saveMeta calls, so tests can check a tap costs one flash write
 
  private:
   TapRec* slots_;
@@ -63,6 +64,7 @@ class TapLog {
   uint32_t capacity_;
   uint8_t* bits_;  // one bit per slot: holds an unsent tap
   uint32_t nextSeq_ = 1;
+  uint32_t savedMeta_ = 0;  // the next-seq value last saved; marking a tap sent first saves a value at least this new
   size_t unsentCount_ = 0;
 };
 

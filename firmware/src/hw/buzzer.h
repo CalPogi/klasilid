@@ -4,4 +4,5 @@ void begin();
 void ok();       // one short beep: known card
 void unknown();  // two short beeps: card not registered
 void error();    // one long beep: reader full or storage error
+void tick();     // a very short tick: "Already in"
 }

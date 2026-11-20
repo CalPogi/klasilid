@@ -34,6 +34,7 @@ bool MemoryStorage::loadMeta(uint32_t& nextSeq) {
   return hasMeta_;
 }
 bool MemoryStorage::saveMeta(uint32_t nextSeq) {
+  metaWrites++;
   if (failMetaWrites) return false;
   meta_ = nextSeq;
   hasMeta_ = true;
@@ -67,6 +68,7 @@ bool TapLog::begin() {
   // A power cut between the record write and the meta write must never hand out a seq twice.
   nextSeq_ = meta > highest + 1 ? meta : highest + 1;
   if (nextSeq_ == 0) nextSeq_ = 1;
+  savedMeta_ = meta;
   return true;
 }
 
@@ -80,8 +82,9 @@ TapLog::Add TapLog::add(const char* uid, uint32_t unix, uint32_t syncedUnix, uin
   r.syncedUnix = syncedUnix;
   strncpy(r.uid, uid, sizeof r.uid - 1);
   r.crc = tapCrc(r);
+  // One flash write per tap (on-board timing: the extra meta write made a tap take up to 1.1 s). begin() takes
+  // the next seq from the records; a torn record here was never uploaded, so its seq may be handed out again.
   if (!s_.write(slot, r)) return Add::Error;
-  s_.saveMeta(nextSeq_ + 1);  // a failed meta write is recovered by begin() from the record itself
   seqOut = nextSeq_++;
   setUnsent(slot, true);
   unsentCount_++;
@@ -115,6 +118,12 @@ void TapLog::markSent(const uint32_t* seqs, size_t n) {
     if (!isUnsent(slot)) continue;
     TapRec r;
     if (!s_.read(slot, r) || !tapValid(r) || r.seq != seq) continue;
+    // The server holds this seq now. Before rewriting its record (a power cut could tear it), save a next-seq
+    // past it, so begin() can never hand it out again. Once per upload batch: the uploader marks one seq at a time.
+    if (savedMeta_ < nextSeq_) {
+      if (!s_.saveMeta(nextSeq_)) return;  // stays unsent; the server ignores the duplicate next time
+      savedMeta_ = nextSeq_;
+    }
     r.sent = 1;
     r.crc = tapCrc(r);
     if (!s_.write(slot, r)) continue;  // stays unsent; the server ignores the duplicate next time

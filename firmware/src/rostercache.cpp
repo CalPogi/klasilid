@@ -9,12 +9,16 @@ static Card cards_[kMaxCards];
 static size_t nCards_ = 0;
 static Window windows_[kMaxWindows];
 static size_t nWindows_ = 0;
+static volatile uint16_t repeatMinutes_ = 3;
 static SemaphoreHandle_t mu;
+
+uint16_t rostercache::repeatMinutes() { return repeatMinutes_; }
 
 void rostercache::begin() { mu = xSemaphoreCreateMutex(); }
 
-void rostercache::set(const Card* cards, size_t nCards, const Window* windows, size_t nWindows) {
+void rostercache::set(const Card* cards, size_t nCards, const Window* windows, size_t nWindows, uint16_t repeatMinutes) {
   xSemaphoreTake(mu, portMAX_DELAY);
+  repeatMinutes_ = repeatMinutes;
   nCards_ = nCards < kMaxCards ? nCards : kMaxCards;
   memcpy(cards_, cards, nCards_ * sizeof(Card));
   nWindows_ = nWindows < kMaxWindows ? nWindows : kMaxWindows;

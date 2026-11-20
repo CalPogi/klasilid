@@ -33,7 +33,18 @@ You should see `Klasilid reader`, then a line like `log: 0 unsent, next seq 1`. 
 python -m platformio test -e esp32dev
 ```
 
-Expected: both test groups pass. `test_core` shows `22 Tests 0 Failures 0 Ignored` (tap log, debounce, time, upload body, ack and roster parsing, setup-page checks, screen text). `test_storage` shows `3 Tests 0 Failures 0 Ignored` and prints the slowest tap write, which must be under 150 ms. `test_storage` erases the reader's flash; that's fine on a new reader. These are the tests that couldn't run before the board arrived. Copy the summary into the plan 5 notes. After the tests, upload the real firmware again (step 2): the tests replace it.
+Expected: both test groups pass. `test_core` shows `24 Tests 0 Failures 0 Ignored` (tap log, debounce, time, upload body, ack and roster parsing, setup-page checks, screen text). `test_storage` shows `4 Tests 0 Failures 0 Ignored` and prints the slowest tap write (must be under 150 ms; ~110 ms on the first reader) and how long the log takes to open at start-up (must be under 5 s; ~4 s). `test_storage` erases the reader's flash; that's fine on a new reader. Copy the summary into the plan 5 notes.
+
+After the tests, wipe the flash and upload the real firmware again (the tests replace it, and an old test run could leave test taps behind that the reader would upload as real ones):
+
+```bash
+python -m platformio run -t erase
+python -m platformio run -t upload
+```
+
+The first start after a wipe takes about 10 s (it creates the tap log); later starts, including after a brownout, take about 4 s before taps are accepted.
+
+First reader, 2026-11-18: all 28 tests passed; slowest tap write 107–120 ms; log opens in 4.0 s. Step 5 (2026-11-19): screen, card reader and taps work; tap to feedback 292 ms (457 ms on the first tap after start-up).
 
 ## 5. Check each part
 
@@ -41,8 +52,9 @@ With the reader running (step 2 again, then the monitor from step 3):
 - **Screen:** shows the time (or `--:--` and "Clock not set" until the first Wi-Fi sync) and "Tap your card".
 - **Card reader:** tap a card. The screen shows "Card not registered" and the buzzer gives two short beeps. The monitor prints `tap 04A1B2C3 seq 1: 85 ms to feedback`.
 - **Buzzer beeps all the time** right after power-on: first check the transistor on the buzzer module (wiring guide, "Check the buzzer module first"). An S8550 module can't work from VIN; it needs 3.3 V. With an S8050 module, open `firmware/src/hw/pins.h`, change `BUZZER_ACTIVE_LOW = false` to `true`, and upload again.
-- **Power for the clock and screen:** with the screen showing the time, measure between the ESP32's D32 and D33 pins with a multimeter (DC volts). It should read 3.0 V or more. Lower than that, or the screen flickers: buy the ESP32 expansion board named in the wiring guide and move rows 8 and 9 to its 3V3 and GND pins.
+- **Power for the clock and screen:** with the screen showing the time, measure between the ESP32's D32 and D33 pins (the clock) and between D26 and D14 (the screen) with a multimeter (DC volts). Each should read 3.0 V or more. Lower than that, or the screen flickers: buy the ESP32 expansion board named in the wiring guide and move those power wires to its 3V3 and GND pins.
 - **Clock keeps time:** after step 6 has synced it once, unplug the USB for a minute and plug it back in. The time on the screen is still right (the DS3231 runs on its coin cell).
+- **Taps do nothing (no beep, nothing in the monitor) but the card reader's LED is on:** look at the back of the card reader for a solder blob joining two neighbouring pins. On the first reader MISO and MOSI were bridged, so the board heard its own data back and the reader read as version 0x00. Remove the bridge (repair shop, or a craft knife along the gap with USB unplugged). A working reader reports version 0x91 or 0x92.
 - **Nothing on the screen, or "clock" errors:** check rows 8–15 of the wiring guide. D32 and D33 power both the clock and the screen; SDA and SCL swapped is the other usual cause.
 
 ## 6. Connect it to Klasilid
