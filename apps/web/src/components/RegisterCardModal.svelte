@@ -33,7 +33,7 @@
     waiter?.abort();
     if (mode === 'demo' || !current) return;   // demo has no reader: the Simulate tap button stands in
     waiter = new AbortController();
-    waitForNewCard(db, now(), waiter.signal, poll).then(take, () => {});
+    waitForNewCard(db, now(), waiter.signal, poll, 1000).then(take, () => {});  // every second: the learner waits at the door
   }
   function skip() {
     queue = [...queue.slice(1), queue[0]];
