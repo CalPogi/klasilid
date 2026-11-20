@@ -336,6 +336,7 @@ void test_band_texts() {
   bandText(Result::StorageError, 432, b); TEST_ASSERT_EQUAL_STRING("RESTART THE READER", b);
   bandText(Result::Registered, 432, b); TEST_ASSERT_EQUAL_STRING("CARD REGISTERED", b);
   bandText(Result::Checking, 432, b); TEST_ASSERT_EQUAL_STRING("CHECKING WITH THE APP", b);
+  bandText(Result::AlreadyIn, kNoTime, b); TEST_ASSERT_EQUAL_STRING("ALREADY IN", b);  // clock not set: no made-up time
 }
 
 void test_name_faces_count_characters_not_bytes() {  // Review Focus 4
@@ -458,6 +459,24 @@ void test_dim_and_wake() {
   s.tap(Result::OnTime, 5000);
   TEST_ASSERT_TRUE(fr(s, 9000, false).scene == Scene::Idle);  // sequence over, still within 10 s of the tap
   TEST_ASSERT_TRUE(fr(s, 16000, false).scene == Scene::Dim);
+}
+
+void test_a_long_quiet_spell_still_dims() {  // review: after 24.8 days without a tap the screen stayed bright
+  Screen s;
+  s.tap(Result::OnTime, 1000);
+  TEST_ASSERT_TRUE(fr(s, 3000, false).scene != Scene::Dim);
+  TEST_ASSERT_TRUE(fr(s, 12000, false).scene == Scene::Dim);
+  TEST_ASSERT_TRUE(fr(s, 0x80000000u + 12000, false).scene == Scene::Dim);
+}
+
+// review: a 20 s window kept by millis() must not count as running before it starts or once millis() passes 2^31
+void test_countdown_survives_millis_wrap() {
+  Countdown c;
+  TEST_ASSERT_FALSE(c.running(0x80001000u));
+  c.start(0xFFFFFF00u, 20000);
+  TEST_ASSERT_TRUE(c.running(0x100));
+  TEST_ASSERT_FALSE(c.running(20000));
+  TEST_ASSERT_FALSE(c.running(0x80001000u));  // once over, it stays over
 }
 
 void test_setup_scene() {
@@ -603,6 +622,8 @@ void setup() {
   RUN_TEST(test_full_stays_until_space);
   RUN_TEST(test_idle_rolls_the_problem_message);
   RUN_TEST(test_dim_and_wake);
+  RUN_TEST(test_a_long_quiet_spell_still_dims);
+  RUN_TEST(test_countdown_survives_millis_wrap);
   RUN_TEST(test_setup_scene);
   RUN_TEST(test_digit_roll_and_drift);
   RUN_TEST(test_frame_rate);

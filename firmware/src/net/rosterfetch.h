@@ -7,4 +7,6 @@ void begin(const Config& c);
 void tick();  // on connect and every 10 minutes, and every 1 s while checkSoon() asks
 // An unknown card was tapped: fetch the class list every 1 s for 20 s, in case the app just registered it.
 void checkSoon();
+// What a fetch needs: Wi-Fi, a server and key, and a real date (TLS checks the certificate).
+bool canFetch();
 }

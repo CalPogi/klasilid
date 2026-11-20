@@ -33,6 +33,7 @@ class RepeatGuard {
 
 // Checking: an unknown card while online, until the class list is fetched again; Registered: it was there.
 enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError, Registered, Checking };
+constexpr uint16_t kNoTime = 0xFFFF;  // minute when the clock isn't set: "ALREADY IN" shows no time
 void bandText(Result r, uint16_t minute, char out[28]);  // the result band, e.g. "ON TIME · 7:12"
 
 // Names up to 10 letters use the big face, up to 18 the small one; longer ones are cut to 15 letters and "...".
@@ -78,4 +79,18 @@ class Screen {
   bool force_ = true;
   uint32_t nextDue_ = 0;
 };
-size_t utf8Len(const char* s);                                 // letters, not bytes
+size_t utf8Len(const char* s);
+
+// A window of `len` ms on millis(), safe across its wrap: never running before start(), and once over, over for good.
+class Countdown {
+ public:
+  void start(uint32_t ms, uint32_t len) { start_ = ms; len_ = len; on_ = true; }
+  bool running(uint32_t ms) {
+    if (on_ && ms - start_ >= len_) on_ = false;
+    return on_;
+  }
+
+ private:
+  volatile uint32_t start_ = 0, len_ = 0;
+  volatile bool on_ = false;
+};                                 // letters, not bytes

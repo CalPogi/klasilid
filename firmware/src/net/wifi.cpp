@@ -1,4 +1,5 @@
 #include "wifi.h"
+#include "http.h"
 #include <WiFi.h>
 #include <esp_sntp.h>
 #include <time.h>
@@ -36,6 +37,7 @@ void wifi::tick() {
     if (!wasOnline) {
       Serial.printf("wifi: connected to %s, %s\n", cfg.ssid.c_str(), WiFi.localIP().toString().c_str());
       configTime(0, 0, "pool.ntp.org", "time.google.com");
+      http::reset();  // a connection kept from before the drop would only time out (10 s) before the retry
       if (apOn) {  // back on the school network: close the open hotspot
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_STA);

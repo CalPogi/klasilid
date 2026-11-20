@@ -5,10 +5,14 @@
 
 // One TLS connection kept open between requests (all of them run on the network task): a new handshake with the
 // certificate check took seconds on the ESP32, so every upload and class-list fetch waited that long.
+// The HTTPClient is kept too: its destructor stops the client it used, which closed the connection after every
+// request (review #2).
 static WiFiClientSecure secure;
+static HTTPClient h;
+
+void http::reset() { secure.stop(); }
 
 static int once(const Config& c, const char* method, const String& url, const char* body, size_t len, String& response) {
-  HTTPClient h;
   h.setReuse(true);
   h.setConnectTimeout(10000);
   h.setTimeout(10000);

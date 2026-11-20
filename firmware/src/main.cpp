@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <Wire.h>
+#include <esp_timer.h>
 #include <stdio.h>
 #include <string.h>
 #include "app.h"
@@ -39,6 +40,7 @@ static String hotspotName;
 // An unknown card while online: the screen says "Checking card" while the class list is fetched again (the teacher
 // may be registering it in the app right now). Found: its name and "Card registered". Not by checkUntil: Unknown.
 static char checkUid[21] = "";
+static uint32_t checkUptime = 0;  // when that card was tapped (seconds since boot)
 static uint32_t checkUntil = 0;
 static constexpr uint32_t kCheckMs = 20000;
 
@@ -108,9 +110,15 @@ static Result judge(const char* uid, uint32_t now, bool known, uint32_t uptimeSe
   return strcmp(s, "On time") == 0 ? Result::OnTime : strcmp(s, "Late") == 0 ? Result::Late : Result::Recorded;
 }
 
+// Seconds since boot from the 64-bit timer: millis()/1000 wrapped at 4,294,967 s (49.7 days), and a card held on
+// the reader was then saved twice (review #9). Uptime, so a clock jump can't block or double a tap.
+static uint32_t uptimeSec() { return static_cast<uint32_t>(esp_timer_get_time() / 1000000); }
+
 static void handleTap(const char* uid) {
   const uint32_t t0 = millis();
-  if (!debounce.accept(uid, t0 / 1000)) return;  // uptime, so a clock jump can't block or double a tap
+  const uint32_t up = uptimeSec();
+  if (!debounce.accept(uid, up)) return;
+  checkUid[0] = 0;  // any new tap ends a check, before its own result or error shows (review #5)
   const uint32_t now = rtc::now();
   uint32_t seq = 0;
   xSemaphoreTake(logMutex, portMAX_DELAY);
@@ -127,11 +135,11 @@ static void handleTap(const char* uid) {
   }
   char name[24];
   const bool known = rostercache::nameFor(uid, name, sizeof name);
-  const Result r = judge(uid, now, known, t0 / 1000);
-  checkUid[0] = 0;
-  if (r == Result::Unknown && wifi::online() && !uploader::rejected()) {
+  const Result r = judge(uid, now, known, up);
+  if (r == Result::Unknown && rosterfetch::canFetch() && !uploader::rejected()) {
     buzzer::tick();
     strncpy(checkUid, uid, sizeof checkUid - 1);
+    checkUptime = up;
     checkUntil = millis() + kCheckMs;
     rosterfetch::checkSoon();
     bandText(Result::Checking, 0, view.band);
@@ -146,7 +154,7 @@ static void handleTap(const char* uid) {
   else if (r == Result::AlreadyIn) buzzer::tick();
   else buzzer::ok();
   view.face = fitName(known ? name : "", view.name, sizeof view.name);
-  bandText(r, clockLooksValid(now) ? manilaMinute(now) : 0, view.band);
+  bandText(r, clockLooksValid(now) ? manilaMinute(now) : kNoTime, view.band);
   screen.tap(r, millis());
   drawNow(millis());  // the first flash frame, before anything else
   uploader::kick();
@@ -222,8 +230,13 @@ static void checkTick() {
   const bool found = rostercache::nameFor(checkUid, name, sizeof name);
   if (!found && static_cast<int32_t>(millis() - checkUntil) < 0) return;
   const Result r = found ? Result::Registered : Result::Unknown;
-  if (found) buzzer::ok();
-  else buzzer::unknown();
+  if (found) {
+    buzzer::ok();
+    // The app counts this tap: remember it, so a second tap within the repeat minutes shows Already in (review #7).
+    repeats.isRepeat(checkUid, checkUptime, rostercache::repeatMinutes());
+  } else {
+    buzzer::unknown();
+  }
   view.face = fitName(found ? name : "", view.name, sizeof view.name);
   bandText(r, 0, view.band);
   screen.tap(r, millis());

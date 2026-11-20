@@ -61,7 +61,9 @@ void bandText(Result r, uint16_t minute, char out[28]) {
     case Result::OnTime: clock12(minute, t, sizeof t, false); snprintf(out, 28, "ON TIME " KL_DOT " %s", t); break;
     case Result::Late: clock12(minute, t, sizeof t, false); snprintf(out, 28, "LATE " KL_DOT " %s", t); break;
     case Result::Recorded: clock12(minute, t, sizeof t, true); snprintf(out, 28, "RECORDED " KL_DOT " %s", t); break;
-    case Result::AlreadyIn: clock12(minute, t, sizeof t, false); snprintf(out, 28, "ALREADY IN " KL_DOT " %s", t); break;
+    case Result::AlreadyIn:
+      if (minute == kNoTime) { snprintf(out, 28, "ALREADY IN"); break; }
+      clock12(minute, t, sizeof t, false); snprintf(out, 28, "ALREADY IN " KL_DOT " %s", t); break;
     case Result::Unknown: snprintf(out, 28, "%s", KL_MSG_BAND_UNKNOWN); break;
     case Result::ClockNotSet: snprintf(out, 28, "%s", KL_MSG_BAND_CLOCK); break;
     case Result::Full: snprintf(out, 28, "%s", KL_MSG_BAND_FULL); break;
@@ -183,6 +185,9 @@ Frame Screen::frame(uint32_t ms, uint16_t minute, bool bright, bool setup, bool 
   }
 
   if (seq_ == Seq::None) {
+    // Forget the tap once its wake time is over: after 2^31 ms, since() turns negative and a stale tap kept the
+    // screen bright until the next one (review #8).
+    if (tapped_ && since(ms, lastTap_) >= static_cast<int32_t>(kWakeMs)) tapped_ = false;
     const bool awake = tapped_ && since(ms, lastTap_) < static_cast<int32_t>(kWakeMs);
     if (full) f.scene = Scene::Blocked, f.result = Result::Full;
     else if (setup) f.scene = Scene::Setup;
