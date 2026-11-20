@@ -140,11 +140,15 @@ export async function replaceCard(db: KlasilidDb, learnerId: string, now: Date):
   });
 }
 
-/** Waits for the first tap made after `since`, whatever the card: assignCard then registers it or says whose it is. `poll` syncs. */
+/** Waits for the first tap that arrives after `since`, whatever the card: assignCard then registers it or says whose it is.
+ *  `poll` syncs. "New" means not on this device when the wait began: the tap's time is the reader's clock and `since`
+ *  is the laptop's, which can run minutes fast (a tap that looked older was ignored for good). Taps stamped more than
+ *  10 minutes before `since` are still skipped, so an offline reader's old taps arriving late aren't taken. */
 export async function waitForNewCard(db: KlasilidDb, since: Date, signal: AbortSignal, poll: () => Promise<void>, intervalMs = 3000): Promise<string> {
-  const from = since.toISOString();
+  const from = new Date(since.getTime() - 10 * 60_000).toISOString();
+  const before = new Set((await db.taps.where('at').aboveOrEqual(from).primaryKeys()) as string[]);
   while (!signal.aborted) {
-    const [tap] = await db.taps.where('at').aboveOrEqual(from).sortBy('at');
+    const tap = (await db.taps.where('at').aboveOrEqual(from).sortBy('at')).find(t => !before.has(t.id));
     if (tap) return tap.cardUid;
     await poll();
     await new Promise(r => setTimeout(r, intervalMs));

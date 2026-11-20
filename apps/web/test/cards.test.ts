@@ -65,8 +65,8 @@ it('replaceCard deactivates the old card so its taps no longer count for the lea
 
 it('waitForNewCard returns a tap from a card already on file, so the modal can say whose it is', async () => {
   const db = await classDb();
-  await db.taps.put({ id: 'known', deviceId: 'd', cardUid: 'BBBBBBBB', at: at('08:01'), clockSuspect: false });
-  expect(await waitForNewCard(db, new Date(at('08:00')), new AbortController().signal, async () => {}, 5)).toBe('BBBBBBBB');
+  const poll = async () => { await db.taps.put({ id: 'known', deviceId: 'd', cardUid: 'BBBBBBBB', at: at('08:01'), clockSuspect: false }); };
+  expect(await waitForNewCard(db, new Date(at('08:00')), new AbortController().signal, poll, 5)).toBe('BBBBBBBB');
 });
 
 it('waitForNewCard resolves with the first tap after the modal opened, ignoring older taps', async () => {
@@ -117,4 +117,15 @@ it('while the register dialog waits, it looks for the tap every second', async (
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('waitForNewCard still finds the tap when this laptop clock runs 2 minutes fast', async () => {
+  const db = await classDb();
+  await db.taps.put({ id: 'old', deviceId: 'd', cardUid: 'OLD00001', at: at('07:59'), clockSuspect: false });
+  const laptopNow = new Date(Date.parse(at('08:02')) + 2 * 60_000);  // the laptop says 08:04 when the reader says 08:02
+  let polls = 0;
+  const poll = async () => {
+    if (++polls === 2) await db.taps.put({ id: 'new', deviceId: 'd', cardUid: 'NEW00001', at: at('08:02'), clockSuspect: false });
+  };
+  expect(await waitForNewCard(db, laptopNow, new AbortController().signal, poll, 5)).toBe('NEW00001');
 });
