@@ -363,7 +363,7 @@ void test_date_text() {
 void test_every_label_fits_the_band() {  // 124 px at 5 px a character
   char b[28];
   for (Result r : {Result::OnTime, Result::Late, Result::Recorded, Result::Unknown, Result::AlreadyIn, Result::ClockNotSet,
-                   Result::Full, Result::StorageError, Result::Registered, Result::Checking, Result::TimeOut, Result::AlreadyOut}) {
+                   Result::Full, Result::StorageError, Result::Registered, Result::Checking, Result::TimeOut, Result::AlreadyOut, Result::AlreadyRecorded}) {
     bandText(r, 1439, b);
     TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(24, utf8Len(b), b);
   }
@@ -551,17 +551,23 @@ void test_daybook_one_result_per_slot() {
   TEST_ASSERT_TRUE(j(0, 426) == Result::AlreadyIn);   // repeat within 3 min
   TEST_ASSERT_TRUE(j(0, 440) == Result::AlreadyIn);   // 7:20, same slot used
   TEST_ASSERT_TRUE(j(0, 600) == Result::Recorded);    // 10:00, outside every slot: the app lists it for review
+  TEST_ASSERT_TRUE(j(0, 602) == Result::AlreadyRecorded);  // a repeat after it
+  TEST_ASSERT_TRUE(j(0, 620) == Result::AlreadyRecorded);  // 10:20, same gap between slots
   TEST_ASSERT_TRUE(j(0, 695) == Result::TimeOut);     // 11:35
   TEST_ASSERT_TRUE(j(0, 696) == Result::AlreadyOut);  // repeat after a time-out
   TEST_ASSERT_TRUE(j(0, 705) == Result::AlreadyOut);  // 11:45, same slot used
   TEST_ASSERT_TRUE(j(0, 770) == Result::Late);        // 12:50
   TEST_ASSERT_TRUE(j(0, 965) == Result::TimeOut);     // 16:05
+  TEST_ASSERT_TRUE(j(0, 1050) == Result::Recorded);   // 17:30, after the last slot
+  TEST_ASSERT_TRUE(j(0, 1060) == Result::AlreadyRecorded);
   TEST_ASSERT_TRUE(j(1, 425) == Result::OnTime);      // next day starts over
 }
 
 void test_daybook_out_without_in_and_late_after_closing() {
   DayBook b;
   TEST_ASSERT_TRUE(b.judge("CARD0002", manila(0, 695), 3, kDay, 4) == Result::Recorded);  // time-out with no time-in
+  TEST_ASSERT_TRUE(b.judge("CARD0002", manila(0, 705), 3, kDay, 4) == Result::AlreadyRecorded);
+  TEST_ASSERT_TRUE(b.judge("CARD0002", manila(0, 770), 3, kDay, 4) == Result::Late);  // the next slot still works
   TEST_ASSERT_TRUE(b.judge("CARD0003", manila(0, 470), 3, kDay, 4) == Result::Late);      // 7:50, after closing
   TEST_ASSERT_TRUE(b.judge("CARD0003", manila(0, 480), 3, kDay, 4) == Result::Recorded);  // 8:00, already in
   TEST_ASSERT_TRUE(b.judge("CARD0004", manila(0, 425), 3, kDay, 4) == Result::OnTime);    // cards are kept apart
@@ -572,12 +578,15 @@ void test_band_texts_for_time_out() {
   bandText(Result::TimeOut, 705, b); TEST_ASSERT_EQUAL_STRING("TIME OUT \xC2\xB7 11:45", b);
   bandText(Result::AlreadyOut, 705, b); TEST_ASSERT_EQUAL_STRING("ALREADY OUT \xC2\xB7 11:45", b);
   bandText(Result::AlreadyOut, kNoTime, b); TEST_ASSERT_EQUAL_STRING("ALREADY OUT", b);
+  bandText(Result::AlreadyRecorded, 1050, b); TEST_ASSERT_EQUAL_STRING("ALREADY RECORDED \xC2\xB7 5:30", b);
 }
 
 void test_already_out_uses_the_short_sequence() {
   Screen s;
   s.tap(Result::AlreadyOut, 0);
   TEST_ASSERT_TRUE(fr(s, 100).scene == Scene::Repeat);
+  s.tap(Result::AlreadyRecorded, 5000);
+  TEST_ASSERT_TRUE(fr(s, 5100).scene == Scene::Repeat);
 }
 
 // ---- Review I1: setup form checks and pairing-code lockout ----

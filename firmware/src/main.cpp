@@ -172,7 +172,7 @@ static void handleTap(const char* uid) {
     return;
   }
   if (r == Result::Unknown) buzzer::unknown();
-  else if (r == Result::AlreadyIn || r == Result::AlreadyOut) buzzer::tick();
+  else if (r == Result::AlreadyIn || r == Result::AlreadyOut || r == Result::AlreadyRecorded) buzzer::tick();
   else buzzer::ok();
   view.face = fitName(known ? name : "", view.name, sizeof view.name);
   bandText(r, clockLooksValid(now) ? manilaMinute(now) : kNoTime, view.band);

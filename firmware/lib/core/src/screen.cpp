@@ -74,6 +74,7 @@ void bandText(Result r, uint16_t minute, char out[28]) {
     case Result::AlreadyOut:
       if (minute == kNoTime) { snprintf(out, 28, "ALREADY OUT"); break; }
       clock12(minute, t, sizeof t, false); snprintf(out, 28, "ALREADY OUT " KL_DOT " %s", t); break;
+    case Result::AlreadyRecorded: clock12(minute, t, sizeof t, false); snprintf(out, 28, "ALREADY RECORDED " KL_DOT " %s", t); break;
   }
 }
 
@@ -109,7 +110,7 @@ static constexpr uint32_t kWakeMs = 10000;    // a tap keeps a dim screen bright
 static int32_t since(uint32_t now, uint32_t then) { return static_cast<int32_t>(now - then); }  // safe across millis wrap
 
 void Screen::tap(Result r, uint32_t ms) {
-  seq_ = r == Result::AlreadyIn || r == Result::AlreadyOut ? Seq::Repeat : Seq::Tap;
+  seq_ = r == Result::AlreadyIn || r == Result::AlreadyOut || r == Result::AlreadyRecorded ? Seq::Repeat : Seq::Tap;
   result_ = r;
   start_ = ms;
   tapped_ = true;
@@ -232,26 +233,37 @@ Result DayBook::judge(const char* uid, uint32_t unix, uint16_t repeatMinutes, co
     e = count_ < kCards ? &e_[count_++] : &scratch;
     *e = Entry{};
     strncpy(e->uid, uid, sizeof e->uid - 1);
-    e->lastUnix = 0;
+    e->gap = kNoGap;
   }
-  if (e->lastUnix && unix - e->lastUnix < static_cast<uint32_t>(repeatMinutes) * 60) return e->lastOut ? Result::AlreadyOut : Result::AlreadyIn;
+  if (e->lastUnix && unix - e->lastUnix < static_cast<uint32_t>(repeatMinutes) * 60) {
+    return e->last == Result::TimeOut || e->last == Result::AlreadyOut ? Result::AlreadyOut
+         : e->last == Result::Recorded || e->last == Result::AlreadyRecorded ? Result::AlreadyRecorded : Result::AlreadyIn;
+  }
   e->lastUnix = unix;
-  e->lastOut = false;
+  e->last = slot(*e, static_cast<uint16_t>(((unix + 8 * 3600) % 86400) / 60), w, n);
+  return e->last;
+}
 
-  const uint16_t m = static_cast<uint16_t>(((unix + 8 * 3600) % 86400) / 60);
+Result DayBook::slot(Entry& e, uint16_t m, const Window* w, size_t n) {
   const auto bit = [](char session, char kind) { return static_cast<uint8_t>(1 << ((session == 'p' ? 2 : 0) + (kind == 'o' ? 1 : 0))); };
+  // Recorded once per place: inside window i (a time-out with no time-in) is place 100+i; between slots, the number of
+  // windows already closed.
+  const auto recorded = [&](uint8_t place) {
+    if (e.gap == place) return Result::AlreadyRecorded;
+    e.gap = place;
+    return Result::Recorded;
+  };
   for (size_t i = 0; i < n; i++) {
     if (m < w[i].opens || m > w[i].closes) continue;
     const uint8_t in = bit(w[i].session, 'i'), out = bit(w[i].session, 'o');
     if (w[i].kind == 'i') {
-      if (e->used & in) return Result::AlreadyIn;
-      e->used |= in;
+      if (e.used & in) return Result::AlreadyIn;
+      e.used |= in;
       return w[i].lateAfter == KL_NO_LATE || m <= w[i].lateAfter ? Result::OnTime : Result::Late;
     }
-    if (!(e->used & in)) return Result::Recorded;
-    e->lastOut = true;
-    if (e->used & out) return Result::AlreadyOut;
-    e->used |= out;
+    if (!(e.used & in)) return recorded(static_cast<uint8_t>(100 + i));
+    if (e.used & out) return Result::AlreadyOut;
+    e.used |= out;
     return Result::TimeOut;
   }
   // Between an in-window's close and the next window's open, with no time-in yet: a late arrival.
@@ -261,11 +273,13 @@ Result DayBook::judge(const char* uid, uint32_t unix, uint16_t repeatMinutes, co
     for (size_t k = 0; k < n; k++) if (w[k].opens > w[i].closes && w[k].opens < next) next = w[k].opens;
     if (m >= next) continue;
     const uint8_t in = bit(w[i].session, 'i');
-    if (e->used & in) break;
-    e->used |= in;
+    if (e.used & in) break;
+    e.used |= in;
     return Result::Late;
   }
-  return Result::Recorded;
+  uint8_t closedBefore = 0;
+  for (size_t i = 0; i < n; i++) closedBefore += w[i].closes < m;
+  return recorded(closedBefore);
 }
 
 void dateText(uint32_t unix, bool clockValid, char out[12]) {
