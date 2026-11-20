@@ -11,13 +11,14 @@ static Config cfg;
 static Card cards[120];
 static Window windows[8];
 static bool fetchedThisConnection = false;
-static uint32_t lastFetchMs = 0;
+static volatile uint32_t lastFetchMs = 0;  // checkSoon() (tap loop) sets it too
 static volatile uint32_t checkUntilMs = 0;  // set by the tap loop (core 1), read here (core 0)
-static volatile bool checkNow = false;
 
+// The first fetch waits 3 s like the rest: the tap goes up first (uploader), and the app needs it before it can
+// register the card.
 void rosterfetch::checkSoon() {
   checkUntilMs = millis() + 20000;
-  checkNow = true;
+  lastFetchMs = millis();
 }
 
 static bool apply(const char* json) {
@@ -46,8 +47,7 @@ void rosterfetch::tick() {
   if (cfg.server.isEmpty() || cfg.deviceKey.isEmpty() || !clockLooksValid(static_cast<uint32_t>(time(nullptr)))) return;
   const bool checking = static_cast<int32_t>(checkUntilMs - millis()) > 0;
   const uint32_t every = checking ? 3000 : 10 * 60000;
-  if (fetchedThisConnection && !checkNow && millis() - lastFetchMs < every) return;
-  checkNow = false;
+  if (fetchedThisConnection && millis() - lastFetchMs < every) return;
   fetchedThisConnection = true;
   lastFetchMs = millis();
   String resp;
