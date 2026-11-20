@@ -105,3 +105,16 @@ it('a registered card is sent to the server at once, so the door reader can find
   await fireEvent.click(screen.getByRole('button', { name: 'Simulate tap' }));
   await vi.waitFor(() => expect(poll).toHaveBeenCalled());
 });
+
+it('while the register dialog waits, it looks for the tap every second', async () => {
+  const db = await classDb();
+  vi.useFakeTimers({ toFake: ['setTimeout'] });  // the database's own timers stay real
+  try {
+    const poll = vi.fn(async () => {});
+    render(RegisterCardModal, { db, learners: [(await db.learners.get('c'))!], mode: 'online', now: () => NOW, poll, onclose: vi.fn() });
+    await vi.advanceTimersByTimeAsync(2100);
+    expect(poll.mock.calls.length).toBeGreaterThanOrEqual(3);  // at 0, 1 and 2 s
+  } finally {
+    vi.useRealTimers();
+  }
+});
