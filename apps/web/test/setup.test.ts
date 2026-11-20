@@ -48,7 +48,7 @@ it('applySetup writes class, learners, windows, seat plan and the outbox ops in 
   expect(windows).toHaveLength(4);
   expect(windows.every(w => w.effectiveFrom === '2026-11-13')).toBe(true);
   expect(await db.seatPlans.toArray()).toMatchObject([{ classId, rows: 8, cols: 5, effectiveFrom: '2026-11-13' }]);
-  const ops = (await db.outbox.orderBy('seq').toArray()).map(i => (i.op.kind === 'rpc' ? i.op.fn : i.op.table));
+  const ops = (await db.outbox.orderBy('seq').toArray()).map(i => (i.op.kind === 'rpc' ? i.op.fn : 'table' in i.op ? i.op.table : i.op.kind));
   expect(ops.slice(0, 8)).toEqual(['setup_class', 'add_learner', 'add_learner', 'tap_windows', 'tap_windows', 'tap_windows', 'tap_windows', 'seat_plans']);
   expect(new Set(ops.slice(8))).toEqual(new Set(['calendar_days'])); // preloaded holidays, after the year exists
   const first = (await db.outbox.orderBy('seq').first())!.op;

@@ -8,13 +8,13 @@
   import { fmtTime, shortName, STATUS_LABEL } from '../../lib/format';
   import { go } from '../../lib/router';
   import type { Mode } from '../../lib/session';
-  import { replaceCard, studentRows, type StudentRow } from '../../lib/students';
+  import { studentRows, type StudentRow } from '../../lib/students';
 
   // The mockup's phone Student screen (data-screen="stu") plus the canvas board's Card and Enrollment groups.
   // The mockup's Parent group comes with parent accounts (plan 4).
   let { db, classId, teacherId, now, id, onregister }: {
     db: KlasilidDb; classId: string; teacherId: string; now: () => Date; mode: Mode; id: string;
-    onregister: (t: { learner?: LLearner; bulk?: boolean }) => void;
+    onregister: (t: { learner?: LLearner; bulk?: boolean; replace?: boolean }) => void;
   } = $props();
 
   const today = $derived(todayManila(now()));
@@ -95,7 +95,7 @@
   <div class="rows" style="padding:0 16px"><div class="mrow">
     <div class="txt" style="flex:1"><b>RFID card</b><span class="sub">{row.card.state === 'none' ? 'No card yet' : `Registered · ends in ${row.card.uid?.slice(-4)}`}</span></div>
     {#if !left}
-      <button class="mini-btn" type="button" onclick={async () => { const l = row!.learner; if (row!.card.state !== 'none') await replaceCard(db, l.id, now()); onregister({ learner: l }); }}>
+      <button class="mini-btn" type="button" onclick={() => onregister({ learner: row!.learner, replace: row!.card.state !== 'none' })}>
         {row.card.state === 'none' ? 'Register' : 'Replace'}</button>
     {/if}
   </div></div>

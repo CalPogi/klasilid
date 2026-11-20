@@ -53,14 +53,31 @@ it('a card that is still on for the learner is refused, so a double tap does not
   expect(await db.outbox.count()).toBe(0);
 });
 
-it('replaceCard deactivates the old card so its taps no longer count for the learner', async () => {
+it('replaceCard stops the old card from now on; taps from before still count for the learner (a lost card keeps its history)', async () => {
   const db = await classDb();
   await replaceCard(db, 'a', NOW);
   expect(await db.cards.get('AAAAAAAA')).toMatchObject({ active: false, replacedAt: NOW.toISOString() });
   expect((await db.outbox.toArray())[0].op).toMatchObject({ kind: 'update', table: 'cards', match: { uid: 'AAAAAAAA' }, values: { active: false } });
+  await db.taps.put({ id: 'lost', deviceId: 'd', cardUid: 'AAAAAAAA', at: at('09:30'), clockSuspect: false });  // someone has the lost card
   const day = await classDay(db, 'c1', '2026-11-13', new Date(at('20:00')));
-  expect(day.rows[0].am.status).toBe('absent');
-  expect(day.unknownTaps.map(t => t.id)).toEqual(['t1']);
+  expect(day.rows[0].am.status).not.toBe('absent');  // t1 at 07:00, before the card was switched off
+  expect(day.rows[0].taps.map(t => t.id)).toEqual(['t1']);
+  expect(day.unknownTaps.map(t => t.id)).toEqual(['lost']);
+});
+
+it('the tap that registers a card does not count as attendance; the next one does', async () => {
+  const db = await classDb();
+  await db.cards.delete('CCCCCCCC');
+  await db.taps.put({ id: 'reg', deviceId: 'd', cardUid: 'DD00EE11', at: at('07:05'), clockSuspect: false });
+  await assignCard(db, 'c', 'DD00EE11', new Date(Date.parse(at('07:05')) + 4000));  // saved 4 s after the tap
+  let day = await classDay(db, 'c1', '2026-11-13', new Date(at('20:00')));
+  const c = () => day.rows.find(r => r.learner.id === 'c')!;
+  expect(c().taps).toEqual([]);
+  expect(c().am.status).toBe('absent');
+  expect(day.unknownTaps.map(t => t.id)).not.toContain('reg');  // not a stray tap either
+  await db.taps.put({ id: 'real', deviceId: 'd', cardUid: 'DD00EE11', at: at('07:06'), clockSuspect: false });
+  day = await classDay(db, 'c1', '2026-11-13', new Date(at('20:00')));
+  expect(c().taps.map(t => t.id)).toEqual(['real']);
 });
 
 it('waitForNewCard returns a tap from a card already on file, so the modal can say whose it is', async () => {
@@ -128,4 +145,18 @@ it('waitForNewCard still finds the tap when this laptop clock runs 2 minutes fas
     if (++polls === 2) await db.taps.put({ id: 'new', deviceId: 'd', cardUid: 'NEW00001', at: at('08:02'), clockSuspect: false });
   };
   expect(await waitForNewCard(db, laptopNow, new AbortController().signal, poll, 5)).toBe('NEW00001');
+});
+
+it('Replace card asks first: Cancel keeps the card; confirming switches it off and waits for the new one', async () => {
+  const db = await classDb();
+  const learner = (await db.learners.get('a'))!;
+  const first = render(RegisterCardModal, { db, learners: [learner], replace: true, mode: 'demo', now: () => NOW, poll: async () => {}, onclose: vi.fn() });
+  expect(screen.getByText(/stops working now/)).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect((await db.cards.get('AAAAAAAA'))!.active).toBe(true);
+  first.unmount();
+  render(RegisterCardModal, { db, learners: [learner], replace: true, mode: 'demo', now: () => NOW, poll: async () => {}, onclose: vi.fn() });
+  await fireEvent.click(screen.getByRole('button', { name: 'Replace card' }));
+  await vi.waitFor(async () => expect((await db.cards.get('AAAAAAAA'))!.active).toBe(false));
+  expect(await screen.findByText('Tap a blank card on the door reader')).toBeTruthy();
 });

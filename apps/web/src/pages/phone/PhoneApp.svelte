@@ -22,7 +22,7 @@
   // shows its laptop page (`fallback`) inside the screen area; so do setup and the "connect once" message.
   export interface PhoneCtx {
     db: KlasilidDb; classId: string; className: string; schoolYearId: string; session: Session; mode: Mode; auth: AuthPort | null;
-    now: () => Date; register: (t: { learner?: LLearner; bulk?: boolean }) => void; pageKey: number; rename: (name: string) => void;
+    now: () => Date; register: (t: { learner?: LLearner; bulk?: boolean; replace?: boolean }) => void; pageKey: number; rename: (name: string) => void;
     update: Update | null;
   }
   let { current, onsignout, fallback, ctx }: { current: Route; onsignout?: () => void; fallback: Snippet<[Route]>; ctx: PhoneCtx } = $props();
