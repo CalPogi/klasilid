@@ -33,7 +33,7 @@ class RepeatGuard {
 
 // Checking: an unknown card while online, until the class list is fetched again; Registered: it was there.
 enum class Result : uint8_t { OnTime, Late, Recorded, Unknown, AlreadyIn, ClockNotSet, Full, StorageError, Registered, Checking,
-                              TimeOut, AlreadyOut };
+                              TimeOut, AlreadyOut, AlreadyRecorded };
 constexpr uint16_t kNoTime = 0xFFFF;  // minute when the clock isn't set: "ALREADY IN" shows no time
 void bandText(Result r, uint16_t minute, char out[28]);  // the result band, e.g. "ON TIME · 7:12"
 
@@ -86,15 +86,20 @@ size_t utf8Len(const char* s);
 // card gets one morning time-in, one time-out, one afternoon time-in and one time-out a day.
 //   in-window: first tap of the session OnTime/Late, then AlreadyIn;  out-window: first tap after a time-in TimeOut,
 //   then AlreadyOut (no time-in yet: Recorded, the app lists it for review);  after an in-window closed with no time-in:
-//   Late;  anything else: Recorded. A tap within repeatMinutes of the card's last counted tap is a repeat (AlreadyIn,
-//   or AlreadyOut after a time-out) and doesn't count, as the app's dropRepeats. Needs a real date; starts over each
+//   Late;  anything else: Recorded, and more such taps before the next slot opens AlreadyRecorded. A tap within
+//   repeatMinutes of the card's last counted tap is a repeat (Already in / out / recorded, after what that tap was)
+//   and doesn't count, as the app's dropRepeats. Needs a real date; starts over each
 //   Manila day. 128 cards, more than the class list holds (120); past that, taps are judged but not remembered.
 class DayBook {
  public:
   Result judge(const char* uid, uint32_t unix, uint16_t repeatMinutes, const Window* w, size_t n);
 
  private:
-  struct Entry { char uid[21]; uint8_t used; bool lastOut; uint32_t lastUnix; };  // used: am in, am out, pm in, pm out
+  // used: am in, am out, pm in, pm out. last: what the last counted tap showed (for repeats). gap: where the last
+  // Recorded tap fell (kNoGap: none), so another tap there shows AlreadyRecorded.
+  static constexpr uint8_t kNoGap = 0xFF;
+  struct Entry { char uid[21]; uint8_t used; Result last; uint8_t gap; uint32_t lastUnix; };
+  Result slot(Entry& e, uint16_t minute, const Window* w, size_t n);
   static constexpr int kCards = 128;
   Entry e_[kCards] = {};
   int count_ = 0;
