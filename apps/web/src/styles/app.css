@@ -11,7 +11,9 @@ body { background: var(--bg); }
 a.btn { text-decoration: none; }
 .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
 
-@media (max-width: 1180px) {
+/* Only where the mockup turns the sidebar into a slide-in drawer (860 px). At 861–1180 px it stays in its column:
+   pinning it there too squeezed every page under it on 1366×768 laptops at 125% (about 1093 px). */
+@media (max-width: 860px) {
   .app .side { position: fixed; height: calc(100vh - 16px); top: 8px; bottom: 8px; left: 8px; }
   .wscrim { position: fixed; }
   .page.on.fill { height: auto; }
