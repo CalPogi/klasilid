@@ -24,6 +24,7 @@
     if (!r.ok) { note = `This card belongs to ${r.ownerName}. Tap a blank card.`; listen(); return; }
     note = '';
     done++;
+    poll().catch(() => {});  // send it now: the door reader is checking for this card while the learner waits
     if (!bulk) { ok = true; setTimeout(onclose, 1200); return; }
     queue = queue.slice(1);
     if (queue.length) listen();
