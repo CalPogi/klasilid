@@ -90,6 +90,7 @@ describe('time out', () => {
     const r = computeDay(day({ taps: [tap('o', '11:45:00')] }));
     expect(r.am.status).toBe('absent');
     expect(r.review.map(x => x.tapId)).toEqual(['o']);
+    expect(r.review[0].why).toBe('no_time_in');  // inside a time-out window: not "outside tap times"
   });
   it('a tap after the last window closes goes to review', () => {
     const r = computeDay(day({ taps: [tap('p', '13:00:00'), tap('z', '17:30:00')] }));

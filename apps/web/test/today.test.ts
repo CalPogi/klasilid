@@ -82,3 +82,26 @@ it('Today tells the teacher about changes the server refused', async () => {
   await show(db);
   expect(await screen.findByText('1 change the server refused')).toBeTruthy();
 });
+
+it('Today shows when the reader last sent a tap instead of "No reader yet", and drops the pairing to-do', async () => {
+  await show();
+  expect(await screen.findByText('Last tap 7:20 AM')).toBeTruthy();
+  expect(screen.queryByText('No reader yet')).toBeNull();
+  expect(screen.queryByText('Pair your door reader')).toBeNull();
+});
+
+it('Today still says "No reader yet" when no tap has ever arrived', async () => {
+  const db = await classDb();
+  await db.taps.clear();
+  await show(db);
+  expect(await screen.findByText('Pair your door reader')).toBeTruthy();  // after the page has loaded
+  expect(screen.getByText('No reader yet')).toBeTruthy();
+});
+
+it('a time-out tap with no time-in says so, not "outside tap times"', async () => {
+  const db = await classDb();
+  await db.taps.put({ id: 'o', deviceId: 'd', cardUid: 'CCCCCCCC', at: at('11:45'), clockSuspect: false });
+  render(Today, { db, classId: 'c1', teacherId: 't', displayName: "Ma'am Test", now: () => new Date(at('12:00')) });
+  const item = await screen.findByRole('button', { name: /Carla Castro/ });
+  expect(item.textContent).toContain('Tapped out 11:45 AM with no time-in');
+});

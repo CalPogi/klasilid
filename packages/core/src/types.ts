@@ -56,7 +56,8 @@ export interface HalfDay {
 export interface ReviewItem {
   tapId: string;
   at: string;
-  why: 'outside_window';
+  /** no_time_in: a time-out tap with no time-in before it that half-day */
+  why: 'outside_window' | 'no_time_in';
 }
 
 export interface DayResult {

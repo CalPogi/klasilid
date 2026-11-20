@@ -22,12 +22,14 @@
   let bell = $state(false);
   let done: Record<string, boolean> = $state({});
 
+  let hasReader = $state(false);  // a tap has arrived: the door reader is paired
   async function load() {
     day = await classDay(db, classId, todayManila(now()), now());
     pending = await pendingCount(db);
     refused = await db.rejected.count();
     const carded = new Set((await db.cards.toArray()).filter(c => c.active).map(c => c.learnerId));
     noCard = day.rows.filter(r => !carded.has(r.learner.id)).length;
+    hasReader = !!(await db.taps.orderBy('at').last());
   }
   $effect(() => {
     load();
@@ -42,7 +44,7 @@
   const afternoon = $derived(manilaMinute(now().toISOString()) >= 12 * 60);
   const attention = $derived(day ? needsAttention(day) : []);
   const notices = $derived(day ? todayNotices(day, refused, pending, online) : []);
-  const todos = $derived(day ? todayTodos(day, noCard) : []);
+  const todos = $derived(day ? todayTodos(day, noCard, hasReader) : []);
   const left = $derived(todos.filter(t => !done[t.id]).length);
   const noSchool = $derived(day && (day.dayType === 'holiday' || day.dayType === 'suspension'));
   const initials = $derived(displayName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'T');

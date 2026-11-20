@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { manilaMinute, type HalfDayStatus, type Session } from '@klasilid/core';
+  import { manilaDate, manilaMinute, type HalfDayStatus, type Session } from '@klasilid/core';
   import CorrectionModal from '../components/CorrectionModal.svelte';
   import Icon from '../components/Icon.svelte';
   import { classDay, needsAttention, todayManila, type ClassDay, type LearnerDay } from '../lib/attendance';
   import { pendingCount, type KlasilidDb } from '../lib/db';
-  import { fmtLongDay, fmtMinutes, fmtTime, STATUS_LABEL } from '../lib/format';
+  import { fmtDay, fmtLongDay, fmtMinutes, fmtTime, STATUS_LABEL } from '../lib/format';
   import { attentionLine, todayNotices, todayTodos } from '../lib/today';
 
   // Markup and class names follow the mockup's web Today page.
@@ -22,6 +22,7 @@
   let bellOpen = $state(false);
   let query = $state('');
   let done: Record<string, boolean> = $state({});
+  let lastTap: string | undefined = $state();  // the newest tap from any reader: the reader is paired and sending
 
   async function load() {
     const today = todayManila(now());
@@ -32,6 +33,7 @@
     refused = await db.rejected.count();
     const carded = new Set((await db.cards.toArray()).filter(c => c.active).map(c => c.learnerId));
     noCard = day.rows.filter(r => !carded.has(r.learner.id)).length;
+    lastTap = (await db.taps.orderBy('at').last())?.at;
   }
   $effect(() => {
     load();
@@ -54,7 +56,8 @@
     ? day.rows.filter(r => `${r.learner.firstName} ${r.learner.lastName}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6) : []);
   const noSchool = $derived(day && (day.dayType === 'holiday' || day.dayType === 'suspension'));
   const notifications = $derived(day ? todayNotices(day, refused, pending, online) : []);
-  const todos = $derived(day ? todayTodos(day, noCard) : []);
+  const todos = $derived(day ? todayTodos(day, noCard, !!lastTap) : []);
+  const tappedToday = $derived(!!lastTap && manilaDate(lastTap) === todayManila(now()));
   const left = $derived(todos.filter(t => !done[t.id]).length);
   const why = (r: LearnerDay) => attentionLine(r, afternoon);
   function open(r: LearnerDay, s: Session = half) {
@@ -88,7 +91,7 @@
         {/each}
       </div>
     </div>
-    <span class="chip" style="white-space:nowrap"><span class="dot" style="background:#9C9CA6"></span>No reader yet</span>
+    <span class="chip" style="white-space:nowrap"><span class="dot" style="background:{tappedToday ? 'var(--ok)' : '#9C9CA6'}"></span>{lastTap ? `Last tap ${tappedToday ? fmtTime(lastTap) : fmtDay(manilaDate(lastTap))}` : 'No reader yet'}</span>
     <a class="btn" href="#/seat">Open seat plan<Icon name="arrow" /></a>
   </div>
 

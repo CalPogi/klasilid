@@ -54,7 +54,7 @@ export function computeDay(input: DayInput): DayResult {
         h.status = m <= (w.lateAfter ?? w.closes) ? 'on_time' : 'late';
       } else if (w.kind === 'out' && !hasIn[w.session]) {
         // Evidence they were here without a time-in: let the teacher decide rather than hiding it.
-        review.push({ tapId: t.id, at: t.at, why: 'outside_window' });
+        review.push({ tapId: t.id, at: t.at, why: 'no_time_in' });
       } else if (w.kind === 'out' && !h.outTapId) {
         h.outTapId = t.id;
       }
