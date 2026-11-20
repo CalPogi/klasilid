@@ -8,13 +8,13 @@
   import TransferModal from '../components/TransferModal.svelte';
   import { classDay, schoolDaysInMonth, todayManila, type ClassDay, type LearnerDay } from '../lib/attendance';
   import type { KlasilidDb, LLearner } from '../lib/db';
-  import { replaceCard, studentRows, type StudentFilter, type StudentRow } from '../lib/students';
+  import { studentRows, type StudentFilter, type StudentRow } from '../lib/students';
   import type { Mode } from '../lib/session';
 
   // Markup follows the mockup's Students page (renderStudents) and its drawer and modals.
   let { db, classId, teacherId, now, mode = 'online', onregister }: {
     db: KlasilidDb; classId: string; teacherId: string; now: () => Date; mode?: Mode;
-    onregister?: (target: { learner?: LLearner; bulk?: boolean }) => void;
+    onregister?: (target: { learner?: LLearner; bulk?: boolean; replace?: boolean }) => void;
   } = $props();
 
   const PER_PAGE = 11; // fits a 1440×950 laptop screen with the tools row and pager
@@ -108,7 +108,7 @@
 {#if open}
   <StudentDrawer row={open} today={todayOf(open.learner.id)} {className} {now} {letter} onclose={() => (open = undefined)}
     oncorrect={(r, s) => (correcting = { row: r, session: s })} ontransfer={() => (moving = open)}
-    oncard={async a => { const l = open!.learner; if (a === 'replace') await replaceCard(db, l.id, now()); await load(); onregister?.({ learner: l }); }} />
+    oncard={a => onregister?.({ learner: open!.learner, replace: a === 'replace' })} />
 {/if}
 {#if adding}
   <AddStudentModal {db} {classId} {className} {days} {today} {now} onclose={() => (adding = false)}

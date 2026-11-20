@@ -58,7 +58,8 @@ it('a learner’s card row registers or replaces; Transferred out opens its shee
   const onregister = vi.fn();
   render(StudentPhone, { db, ...base, id: e.learnerId, onregister });
   await fireEvent.click(await screen.findByRole('button', { name: /^(Replace|Register)$/ }));
-  await vi.waitFor(() => expect(onregister).toHaveBeenCalledWith({ learner: expect.objectContaining({ id: e.learnerId }) }));
+  // Replace goes through the dialog, which asks before the old card stops working.
+  await vi.waitFor(() => expect(onregister).toHaveBeenCalledWith({ learner: expect.objectContaining({ id: e.learnerId }), replace: expect.any(Boolean) }));
   await fireEvent.click(screen.getByRole('button', { name: 'Transferred out' }));
   expect(await screen.findByRole('heading', { name: 'Mark as transferred out' })).toBeTruthy();
 });

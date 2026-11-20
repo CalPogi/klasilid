@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { KlasilidDb, LLearner } from '../lib/db';
   import type { Mode } from '../lib/session';
-  import { assignCard, waitForNewCard } from '../lib/students';
+  import { assignCard, replaceCard, waitForNewCard } from '../lib/students';
   import Modal from './Modal.svelte';
 
   // Markup follows the mockup's register-card (#regModal) and register-in-a-row (#bulkModal) modals.
-  let { db, learners, bulk = false, mode, now, poll, onclose }: {
-    db: KlasilidDb; learners: LLearner[]; bulk?: boolean; mode: Mode; now: () => Date; poll: () => Promise<void>; onclose: () => void;
+  // replace: the learner's card is lost or broken. Nothing changes until the teacher confirms; then the old card stops
+  // working and the dialog waits for the new one.
+  let { db, learners, bulk = false, replace = false, mode, now, poll, onclose }: {
+    db: KlasilidDb; learners: LLearner[]; bulk?: boolean; replace?: boolean; mode: Mode; now: () => Date; poll: () => Promise<void>; onclose: () => void;
   } = $props();
 
   let queue = $state([...learners]);
@@ -17,6 +19,13 @@
   const current = $derived(queue[0]);
   const name = (l: LLearner) => `${l.firstName} ${l.lastName}`;
   let waiter: AbortController | undefined;
+  let asking = $state(replace);
+  async function confirmReplace() {
+    if (!current) return;
+    await replaceCard(db, current.id, now());
+    asking = false;
+    listen();
+  }
 
   async function take(uid: string) {
     if (!current) return;
@@ -31,7 +40,7 @@
   }
   function listen() {
     waiter?.abort();
-    if (mode === 'demo' || !current) return;   // demo has no reader: the Simulate tap button stands in
+    if (mode === 'demo' || !current || asking) return;   // demo has no reader: the Simulate tap button stands in
     waiter = new AbortController();
     waitForNewCard(db, now(), waiter.signal, poll, 1000).then(take, () => {});  // every second: the learner waits at the door
   }
@@ -63,6 +72,16 @@
       {:else}
         <button class="btn" type="button" onclick={onclose}>Done</button>
       {/if}
+    </div>
+  {:else if current && asking}
+    <h4 id="rgTitle">Replace card</h4><div class="meta">For {name(current)}</div>
+    <div class="tapwait">
+      <b>{current.firstName}’s current card stops working now</b>
+      <span>Use this when a card is lost or broken. Taps made with it so far still count. Next, tap the new card on the door reader.</span>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" type="button" onclick={onclose}>Cancel</button>
+      <button class="btn" type="button" onclick={confirmReplace}>Replace card</button>
     </div>
   {:else if current}
     <h4 id="rgTitle">Register card</h4><div class="meta">For {name(current)}</div>

@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "types": ["svelte"], "verbatimModuleSyntax": true },
+  "compilerOptions": { "types": ["svelte", "vite/client"], "verbatimModuleSyntax": true },
   "include": ["src", "test"]
 }

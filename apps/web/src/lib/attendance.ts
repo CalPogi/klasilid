@@ -12,7 +12,7 @@ export interface ClassDay {
   windows: TapWindow[];
   /** From the morning half: in = on time + late, notYet = pending. */
   counts: { in: number; late: number; absent: number; notYet: number; total: number };
-  /** Taps whose card is not an active card of an enrolled learner. */
+  /** Stray taps: a card not on file, or a switched-off card used after it was switched off (never a registering tap). */
   unknownTaps: LTap[];
   /** Taps of enrolled learners stamped by a reader clock that looked wrong. */
   suspectTaps: LTap[];
@@ -33,7 +33,14 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
     .filter(e => e.joinedOn <= date && (!e.leftOn || date < e.leftOn));
   const learners = (await db.learners.bulkGet(enrolled.map(e => e.learnerId))).filter((l): l is LLearner => !!l).sort(byName);
   const ids = new Set(learners.map(l => l.id));
-  const ownerOf = new Map((await db.cards.toArray()).filter(c => c.active && ids.has(c.learnerId)).map(c => [c.uid, c.learnerId]));
+  // A tap counts for the card's learner from the moment the card was registered until it was switched off: the tap
+  // used to register it doesn't count (the teacher may tap every card herself), and a replaced card keeps the taps
+  // from before it was lost. A card without issuedAt (older rows) counts from the start.
+  const classCards = (await db.cards.toArray()).filter(c => ids.has(c.learnerId));
+  const holderOf = (t: LTap) => classCards.find(c => c.uid === t.cardUid && (!c.issuedAt || t.at >= c.issuedAt)
+    && (c.active || (!!c.replacedAt && t.at < c.replacedAt)))?.learnerId;
+  // Stray taps: cards not on file, or a switched-off card used after it was switched off. Not the registering tap.
+  const stray = (t: LTap) => !holderOf(t) && !classCards.some(c => c.uid === t.cardUid && !!c.issuedAt && t.at < c.issuedAt);
 
   const start = manilaMidnight(date);
   const end = new Date(start.getTime() + 24 * 3600_000);
@@ -48,7 +55,7 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
 
   const corrections = (await db.corrections.where('date').equals(date).toArray()).filter(c => c.classId === classId);
   const rows: LearnerDay[] = learners.map(learner => {
-    const mine = taps.filter(t => ownerOf.get(t.cardUid) === learner.id);
+    const mine = taps.filter(t => holderOf(t) === learner.id);
     const r = computeDay({
       date, dayType, now: now.toISOString(), windows, ignoreRepeatMinutes: cls?.ignoreRepeatMinutes ?? 3, reviewOutside: cls?.reviewOutside ?? true,
       taps: mine, corrections: corrections.filter(c => c.learnerId === learner.id),
@@ -61,8 +68,8 @@ export async function classDay(db: KlasilidDb, classId: string, date: IsoDate, n
   return {
     date, dayType, needsSetup, rows, windows,
     counts: { in: count('on_time') + count('late'), late: count('late'), absent: count('absent'), notYet: count('pending'), total: rows.length },
-    unknownTaps: taps.filter(t => !ownerOf.has(t.cardUid)),
-    suspectTaps: taps.filter(t => t.clockSuspect && ownerOf.has(t.cardUid)),
+    unknownTaps: taps.filter(stray),
+    suspectTaps: taps.filter(t => t.clockSuspect && !!holderOf(t)),
   };
 }
 

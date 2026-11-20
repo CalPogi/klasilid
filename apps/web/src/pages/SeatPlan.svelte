@@ -65,7 +65,7 @@
     edit = false;
     load();
   }
-  let dragging: typeof sel = null;
+  let dragging: Pick = null;
   const uns = $derived(unseated(draft, learners));
   const cap = $derived(draft.rows * draft.cols);
   const hint = $derived(editorHint(draft, sel, learners, msg, 'Click'));

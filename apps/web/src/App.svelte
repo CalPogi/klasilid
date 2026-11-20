@@ -65,12 +65,12 @@
   } : undefined;
   let pending = $state(0);
   let firstSyncFailed = $state(false);
-  let registering: { learners: LLearner[]; bulk: boolean } | undefined = $state();
+  let registering: { learners: LLearner[]; bulk: boolean; replace?: boolean } | undefined = $state();
   let pageKey = $state(0); // remount the page after a registration so it shows the new card
 
   /** One learner, or everyone enrolled without an active card, in name order. */
-  async function register(t: { learner?: LLearner; bulk?: boolean }) {
-    if (t.learner) { registering = { learners: [t.learner], bulk: false }; return; }
+  async function register(t: { learner?: LLearner; bulk?: boolean; replace?: boolean }) {
+    if (t.learner) { registering = { learners: [t.learner], bulk: false, replace: t.replace }; return; }
     const carded = new Set((await db.cards.toArray()).filter(c => c.active).map(c => c.learnerId));
     const enrolled = (await db.enrollments.where('classId').equals(classId).toArray()).filter(e => !e.leftOn).map(e => e.learnerId);
     const learners = (await db.learners.bulkGet(enrolled)).filter((l): l is LLearner => !!l && !carded.has(l.id))
@@ -174,7 +174,7 @@
     </Shell>
   {/if}
   {#if registering}
-    <RegisterCardModal {db} learners={registering.learners} bulk={registering.bulk} {mode} {now} poll={async () => { await sync(); }}
+    <RegisterCardModal {db} learners={registering.learners} bulk={registering.bulk} replace={registering.replace} {mode} {now} poll={async () => { await sync(); }}
       onclose={() => { registering = undefined; pageKey++; }} />
   {/if}
 {/if}
